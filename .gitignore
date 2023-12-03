@@ -1,0 +1,14 @@
+**/*.exe
+
+.vscode/
+.vscode
+src-test
+src-test/
+target
+target/
+
+games.txt
+games.pgn
+debug.txt
+notes.txt
+stderr.txt

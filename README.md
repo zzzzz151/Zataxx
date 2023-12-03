@@ -1,1 +1,1 @@
-# Zataxx
+# Zataxx - Ataxx engine in Rust
