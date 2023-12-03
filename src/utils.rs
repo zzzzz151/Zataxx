@@ -118,9 +118,43 @@ pub fn print_bitboard(bb: u64) {
     // Format as a binary string with the lowest 49 bits
     let bitset = format!("{:049b}", bb);
 
-    println!();
     for chunk in bitset.chars().collect::<Vec<_>>().chunks(7) {
         let chunk_str: String = chunk.into_iter().rev().collect();
         println!("{}", chunk_str);
     }
+}
+
+pub fn str_to_square(sq: &str) -> Square {
+    let file = sq.chars().next().unwrap() as usize - 'a' as usize;
+    let rank = sq.chars().nth(1).unwrap().to_digit(10).unwrap() as usize - 1;
+    (rank * 7 + file) as Square
+}
+
+pub fn move_to_str(mov: Move) -> String
+{
+    assert!(mov != MOVE_NONE);
+
+    if mov == MOVE_PASS {
+        return String::from("0000");
+    }
+    if mov[FROM] == mov[TO] { 
+        SQUARE_TO_STR[mov[TO] as usize].to_string() 
+    }
+    else { 
+        SQUARE_TO_STR[mov[FROM] as usize].to_string() + SQUARE_TO_STR[mov[TO] as usize] 
+    }
+}
+
+pub fn str_to_move(mov: &str) -> Move {
+    if mov.len() == 2 {
+        let sq: Square = str_to_square(mov);
+        return [sq, sq];
+    }
+
+    let str_from = &mov[0..2];
+    let str_to = &mov[mov.len() - 2..];
+
+    let from: Square = str_to_square(str_from);
+    let to: Square = str_to_square(str_to);
+    [from, to]
 }

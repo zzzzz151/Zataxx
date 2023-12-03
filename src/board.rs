@@ -3,6 +3,7 @@
 
 use crate::types::*;
 use crate::utils::*;
+use crate::search::*;
 
 #[derive(Clone)]
 pub struct Board 
@@ -13,12 +14,12 @@ pub struct Board
     pub plies_since_capture: u16,
     pub current_move: u16,
     pub states: Vec<Board>, 
-    pub mov: Move
+    pub mov: Move,
 }
 
 impl Board
 {
-    fn default() -> Self {
+    pub fn default() -> Self {
         Self {
             color: Color::Red,
             bitboards: [0, 0],
@@ -26,7 +27,7 @@ impl Board
             plies_since_capture: 0,
             current_move: 1,
             states: Vec::new(),
-            mov: MOVE_NONE
+            mov: MOVE_NONE,
         }
     }
 
@@ -130,7 +131,6 @@ impl Board
         }
         result.pop(); // remove last new line
 
-        println!();
         println!("{}", result);
         println!("  A B C D E F G");
         println!("{}", self.fen());
@@ -196,6 +196,13 @@ impl Board
         self.bitboards[self.color as usize] |= enemies_captured;
         self.bitboards[opp_color(self.color) as usize] ^= enemies_captured;
 
+        if enemies_captured > 0 {
+            self.plies_since_capture = 0;
+        }
+        else {
+            self.plies_since_capture += 1;
+        }
+
         self.color = opp_color(self.color);
     }
 
@@ -208,6 +215,7 @@ impl Board
         self.blocked = last_state.blocked;
         self.plies_since_capture = last_state.plies_since_capture;
         self.current_move = last_state.current_move;
+        self.mov = last_state.mov;
         self.states.pop();
     }
 
@@ -255,7 +263,7 @@ impl Board
 
         return num_moves;
     }
-
+ 
     pub fn is_over(&mut self) -> bool
     {
         if self.plies_since_capture >= 100
@@ -282,12 +290,8 @@ impl Board
         true
     }
 
-    pub fn move_to_string(&self, mov: Move) -> String
+    pub fn eval(&mut self) -> i16
     {
-        assert!(mov != MOVE_NONE);
-        assert!(mov != MOVE_PASS);
-
-        if mov[FROM] == mov[TO] { SQUARE_TO_STR[mov[TO] as usize].to_string() }
-        else { SQUARE_TO_STR[mov[FROM] as usize].to_string() + SQUARE_TO_STR[mov[TO] as usize] }
+        (self.us().count_ones() - self.them().count_ones()) as i16
     }
 }

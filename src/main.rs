@@ -6,10 +6,13 @@ mod types;
 mod utils;
 mod board;
 mod perft;
+mod uai;
+mod search;
 use types::*;
 use utils::*;
 use board::*;
 use perft::*;
+use uai::*;
 
 fn main() {
     #![allow(dead_code)]
@@ -18,10 +21,6 @@ fn main() {
 
     println!("Zataxx by zzzzz");
     init_attacks();
-
-    let board: Board = Board::new(START_FEN2);
-    board.print();
-
-    run_perft_tests();
+    uai_loop();
 
 }

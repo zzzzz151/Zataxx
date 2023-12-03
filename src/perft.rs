@@ -3,6 +3,7 @@
 
 use crate::board::*;
 use crate::types::*;
+use crate::utils::*;
 
 pub fn perft(board: &mut Board, depth: u8) -> u64
 {
@@ -31,7 +32,6 @@ pub fn perft(board: &mut Board, depth: u8) -> u64
 pub fn perft_split(board: &mut Board, depth: u8)
 {
     assert!(depth > 0);
-    println!();
 
     let mut moves: [Move; 256] = [MOVE_NONE; 256];
     let num_moves = board.moves(&mut moves);
@@ -44,7 +44,7 @@ pub fn perft_split(board: &mut Board, depth: u8)
         let nodes: u64 = perft(board, depth - 1);
         total_nodes += nodes;
         board.undo_move();
-        println!("{}: {}", board.move_to_string(mov), nodes);
+        println!("{}: {}", move_to_str(mov), nodes);
     }
 
     println!("Total: {}", total_nodes);
@@ -77,7 +77,6 @@ const PERFT_TESTS: [(&str, [i32; 7]); 21] = [
 
 pub fn run_perft_tests()
 {
-    println!();
     println!("Running perft tests...");
 
     for test_entry in &PERFT_TESTS 
