@@ -10,91 +10,12 @@ import time
 import signal
 from sprt import *
 
-OPENINGS = []
-
-RED = 0
-BLUE = 1
-
-GAME_MILLISECONDS = 10000
-GAME_INCREMENT_MILLISECONDS = 100
-
-ENGINE1_WIN = 0
-ENGINE1_LOSS = 1
-DRAW = 2
-GAME_RESULT_NORMAL = 0
-ENGINE1_OUT_OF_TIME = 1
-ENGINE2_OUT_OF_TIME = 2
-
-alpha = 0.05
-beta = 0.1
-elo0 = 0
-elo1 = 5
-cutechess_sprt = True
-lower = log(beta / (1 - alpha))
-upper = log((1 - beta) / alpha)
-RATING_INTERVAL = 20
-
-def handle_ctrl_c(engine1, engine2):
-    print("Ctrl+C pressed. Terminating engines.")
-    engine1.terminate()
-    engine2.terminate()
+def handle_ctrl_c(subprocesses):
+    print("Ctrl+C pressed. Terminating engines...")
+    for subprocess in subprocesses:
+        subprocess.terminate()
     print("Engines terminated.")
     exit(1)
-
-class Engine:
-    name = "No name"
-    subprocess = None
-    color = None
-    milliseconds_left = 0
-    debugFile = None
-    
-    def __init__(self, exe, debugFile):
-        print("Launching", exe)
-        self.debugFile = debugFile
-        self.subprocess = subprocess.Popen(exe, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-
-        response_lines = self.send_command_read_response("uai")
-        for line in response_lines:
-            if line.startswith("id name"):
-                self.name = line.split(" ")[2].strip()
-                break
-
-        assert self.name != "No name"
-
-        print("Engine", self.name, "initialized")
-
-    def __eq__(self, other):
-        assert isinstance(other, Engine)
-        return self.subprocess == other.subprocess
-
-    def send_command_read_response(self, command):
-        command = command.strip()
-
-        debugFile.write("SEND " + self.name + ": " + command + " \n")
-
-        # Send command to the subprocess
-        self.subprocess.stdin.write(command + "\n")
-        self.subprocess.stdin.flush()
-
-        if command == "uainewgame" or command.startswith("position"):
-            return None
-
-        # Read the response
-        response_lines = []
-        while True:
-            line = self.subprocess.stdout.readline().strip()
-            response_lines.append(line)
-            debugFile.write("RECV " + self.name + ": " + line + "\n")
-            if line == "uaiok":
-                break
-            if line.startswith("bestmove"):
-                return line
-
-        return response_lines
-
-    def terminate(self):
-        self.subprocess.terminate()
-        self.subprocess.wait()
 
 def run_game(engine1, engine2):
     engine1.send_command_read_response("uainewgame")
@@ -152,29 +73,162 @@ def run_game(engine1, engine2):
         return ENGINE1_WIN if engine1.color == BLUE else ENGINE1_LOSS, GAME_RESULT_NORMAL
     return DRAW, GAME_RESULT_NORMAL
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run tournament between 2 Ataxx engines")
-    parser.add_argument("--engine1", help="Engine 1 exe", type=str, required=True)
-    parser.add_argument("--engine2", help="Engine 2 exe", type=str, required=True) 
-    parser.add_argument("--concurrency", help="Concurrency", type=int, required=True) 
-    args = parser.parse_args()
+class Game:
+    board = None
+    engine1 = None
+    engine2 = None
+    name1 = "No name"
+    name2 = "No name"
+    engine_red = None
+    engine_blue = None
+    milliseconds_red = None
+    milliseconds_blue = None
+    GAME_MILLISECONDS = 10000
+    GAME_INCREMENT_MILLISECONDS = 100
 
-    print("Concurrency", args.concurrency)
+    def __init__(self, exe1, exe2):
+        self.engine1 = subprocess.Popen(exe1, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.engine2 = subprocess.Popen(exe2, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
 
-    openingsFile = open("openings_3ply.txt", "r")
-    OPENINGS = openingsFile.readlines()
-    openingsFile.close()
-    assert len(OPENINGS) == 880
+        # Send "uai" and get name of each engine
+        for eng in [self.engine1, self.engine2]:
+            subprocess.stdin.write("uai\n")
+            subprocess.stdin.flush()
+            while True:
+                line = subprocess.stdout.readline().strip()
+                if line.startswith("id name"):
+                    if eng == self.engine1:
+                        self.name1 = line[7:-1].strip()
+                    else:
+                        self.name2 = line[7:-1].strip()
+                elif line == "uaiok": 
+                    break
 
-    debugFile = open("debug.txt", "w")
+    def swap_colors(self):
+        temp = self.engine_red
+        self.engine_red = self.engine_blue
+        self.engine_blue = temp
 
-    engine1 = Engine(args.engine1, debugFile)
-    engine2 = Engine(args.engine2, debugFile)
+    def terminate_engines(self):
+        self.engine_red.terminate()
+        self.engine_blue.terminate()
 
-    # Register the CTRL+C signal handler
-    signal.signal(signal.SIGINT, lambda signum, frame: handle_ctrl_c(engine1, engine2))
+    def read_stdout(self, stdout):
+        if self.engine1.stdout != stdout and self.engine2.stdout != stdout:
+            return False
 
-    games = w = l = d = w_red = w_blue = 0
+        eng = self.engine1 if self.engine1.stdout == stdout else self.engine2
+        line = eng.stdout.readline().strip()
+
+        if line.startswith("bestmove"):
+            str_move = line.split(" ")[-1].strip()
+            board.makemove(ataxx.Move.from_san(str_move))
+
+            if board.gameover():
+                self.onGameOver()
+                return
+
+            fen = board.get_fen()..replace("x", "r").replace("o", "b").strip()
+            new_color = fen.split(" ")[-3]
+            assert new_color == "r" or new_color == "b"
+            color_that_played = "o" if new_color == "x" else "x"
+
+
+    def onGameOver(self):
+        str_result = board.result().strip()
+        games += 1
+        if str_result == "1-0":
+            w_red += 1
+            l_blue += 1
+            if self.engine1 == self.engine_red:
+                w += 1
+            else:
+                l += 1
+        else if str_result == "0-1":
+            w_blue += 1
+            l_red += 1
+            if self.engine1 == self.engine_red:
+                l += 1
+            else:
+                w += 1
+        else:
+            d += 1
+
+        assert w_red + w_blue == w + l
+        assert w + l + d == games
+        assert w_red + w_blue + l_red + l_blue == games - d
+
+        print("(" + name1 + " vs " + name2 + ")", end="")
+        print(" WLD", w, "-", l, "-", d, "(" + str(games) + ")", end ="")
+        if game_result_type != GAME_RESULT_NORMAL:
+            assert game_result_type == ENGINE1_OUT_OF_TIME or game_result_type == ENGINE2_OUT_OF_TIME
+            print(" Engine 1 " + engine1.name if ENGINE1_OUT_OF_TIME else "Engine 2 " + engine2.name, end="")
+            print(" out of time", end="")
+        print(", red wins " + str(w_red) + ", blue wins " + str(w_blue))
+
+        if games % RATING_INTERVAL == 0:
+            llr = sprt(w, l, d, elo0, elo1, cutechess_sprt)
+            e1, e2, e3 = elo_wld(w, l, d)
+            e1 = int(e1)
+            e2 = int(e2)
+            e3 = int(e3)
+            print(f"ELO: {e2} +- {(e3 - e1) / 2} [{e1}, {e3}]")
+            print(f"LLR: {llr:.3} [{elo0:.3}, {elo1:.3}] ({lower:.3}, {upper:.3})")
+            print("H1 accepted" if llr >= upper else ("H0 accepted" if llr <= lower else "Continue playing"))
+            if llr >= upper or llr <= lower:
+                for engine in engines:
+
+
+
+# Parse args
+parser = argparse.ArgumentParser(description="Run tournament between 2 Ataxx engines")
+parser.add_argument("--engine1", help="Engine 1 exe", type=str, required=True)
+parser.add_argument("--engine2", help="Engine 2 exe", type=str, required=True) 
+parser.add_argument("--concurrency", help="Concurrency", type=int, required=True) 
+args = parser.parse_args()
+print("Concurrency", args.concurrency)
+
+# Load openings
+openingsFile = open("openings_3ply.txt", "r")
+OPENINGS = openingsFile.readlines()
+openingsFile.close()
+assert len(OPENINGS) == 880
+
+# Load games and engines
+games = []
+engines = []
+for i in range(args.concurrency):
+    games.append(Game(arg.engine1, arg.engine2))
+    engines.append(games[-1].engine1)
+    engines.append(games[-1].engine2)
+
+# Register the CTRL+C signal handler
+signal.signal(signal.SIGINT, lambda signum, frame: handle_ctrl_c(engines))
+
+# Useful vars
+w = l = d = games = w_red = w_blue = l_red = l_blue = 0
+
+# SPRT settings
+alpha = 0.05
+beta = 0.1
+elo0 = 0
+elo1 = 5
+cutechess_sprt = True
+lower = log(beta / (1 - alpha))
+upper = log((1 - beta) / alpha)
+RATING_INTERVAL = 20
+
+# Main loop
+while True:
+    # Use select to efficiently wait for data on stdout streams
+    readable, _, _ = select.select([engine.stdout for engine in engines], [], [])
+    for stdout in readable:
+        for game in games:
+            read_stdout(stdout)
+
+
+
+
 
     while True:
         game_result, game_result_type = run_game(engine1, engine2)
