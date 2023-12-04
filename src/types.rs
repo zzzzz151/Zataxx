@@ -38,8 +38,18 @@ pub enum File {
     G = 6
 }
 
-pub const START_FEN: &str = "x5o/7/7/7/7/7/o5x x 0 1";
-pub const START_FEN2: &str = "x5o/7/2-1-2/7/2-1-2/7/o5x x 0 1";
+#[repr(u8)]
+#[derive(Clone, Copy)]
+#[derive(PartialEq)]
+pub enum GameResult {
+    None = 0,
+    WinRed = 1,
+    WinBlue = 2,
+    Draw = 3
+}
+
+pub const START_FEN: &str = "r5b/7/7/7/7/7/b5r r 0 1";
+pub const START_FEN2: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
 
 pub type Move = [Square; 2];
 pub const FROM: usize = 0;

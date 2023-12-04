@@ -3,6 +3,7 @@
 
 use lazy_static::lazy_static;
 use std::sync::Mutex;
+use std::time::Instant;
 use crate::types::*;
 
 /*
@@ -157,4 +158,9 @@ pub fn str_to_move(mov: &str) -> Move {
     let from: Square = str_to_square(str_from);
     let to: Square = str_to_square(str_to);
     [from, to]
+}
+
+pub fn milliseconds_elapsed(start_time: Instant) -> u32 {
+    let now = Instant::now();
+    now.duration_since(start_time).as_millis() as u32
 }

@@ -34,16 +34,15 @@ impl Board
     pub fn new(fen: &str) -> Self
     {
         // Fen: pieces stm halfmove fullmove 
-        // 'x' red, 'o' blue, '-' blocked
-        // x5o/7/7/7/7/7/o5x x 0 1
-        // x5o/7/2-1-2/7/2-1-2/7/o5x x 0 1
+        // r5b/7/7/7/7/7/b5r x 0 1
+        // r5b/7/2-1-2/7/2-1-2/7/b5r x 0 1
 
         let mut board = Board::default();
         let fen = fen.trim().to_string();
         let fen_split: Vec<&str> = fen.split(' ').map(str::trim).collect();
         let fen_rows: Vec<&str> = fen_split[0].split('/').map(str::trim).collect();
 
-        board.color = if fen_split[1] == "o" {Color::Blue} else {Color::Red};
+        board.color = if fen_split[1] == "r" || fen_split[1] == "x" {Color::Red} else {Color::Blue};
         board.plies_since_capture = fen_split[2].parse().unwrap();
         board.current_move = fen_split[3].parse().unwrap();
 
@@ -53,10 +52,10 @@ impl Board
         for fen_row in &fen_rows {
             for my_char in fen_row.chars() {
                 let sq = rank * 7 + file;
-                if my_char == 'x' {
+                if my_char == 'r' || my_char == 'x' {
                     board.bitboards[Color::Red as usize] |= 1u64 << sq;
                 }
-                else if my_char == 'o' {
+                else if my_char == 'b' || my_char == 'o' {
                     board.bitboards[Color::Blue as usize] |= 1u64 << sq;
                 }
                 else if my_char == '-' {
@@ -105,7 +104,7 @@ impl Board
         my_fen.pop(); // remove last '/'
 
         my_fen.push(' ');
-        my_fen.push(if self.color == Color::Red {'x'} else {'o'});
+        my_fen.push(if self.color == Color::Red {'r'} else {'b'});
 
         my_fen.push(' ');
         my_fen += &self.plies_since_capture.to_string();
@@ -143,10 +142,10 @@ impl Board
             '-'
         }
         else if (self.bitboards[Color::Red as usize] & sq_bb) > 0 {
-            'x'
+            'r'
         }
         else if (self.bitboards[Color::Blue as usize] & sq_bb) > 0 {
-            'o'
+            'b'
         }
         else {
             '.'
@@ -264,34 +263,58 @@ impl Board
         return num_moves;
     }
  
-    pub fn is_over(&mut self) -> bool
+    pub fn get_game_result(&mut self) -> GameResult
     {
-        if self.plies_since_capture >= 100
-        || self.bitboards[Color::Red as usize] == 0
-        || self.bitboards[Color::Blue as usize] == 0
-        || self.bitboards[Color::Red as usize] == (1u64 << 49)
-        || self.bitboards[Color::Blue as usize] == (1u64 << 49) {
-            return true
+        if self.bitboards[Color::Red as usize] == 0 {
+            return GameResult::WinBlue;
         }
-        
+
+        if self.bitboards[Color::Blue as usize] == 0 {
+            return GameResult::WinRed;
+        }
+
+        let max_squares_occupied: u8 = (49 - self.blocked.count_ones()) as u8;
+        let num_red_pieces: u8 = self.bitboards[Color::Red as usize].count_ones() as u8;
+        if num_red_pieces == max_squares_occupied {
+            return GameResult::WinRed;
+        }
+
+        let num_blue_pieces: u8 = self.bitboards[Color::Blue as usize].count_ones() as u8;
+        if num_blue_pieces == max_squares_occupied {
+            return GameResult::WinBlue;
+        }
+
+        if self.occupancy().count_ones() == max_squares_occupied.into() 
+        {
+            return if num_red_pieces > num_blue_pieces { GameResult::WinRed }
+                    else if num_blue_pieces > num_red_pieces { GameResult::WinBlue }
+                    else { GameResult::Draw }
+        }
+
+        if self.plies_since_capture >= 100 {
+            return GameResult::Draw;
+        }
+
         let mut moves: [Move; 256] = [MOVE_NONE; 256];
         self.moves(&mut moves);
         if moves[0] != MOVE_PASS {
-            return false
+            return GameResult::None
         }
         
         self.make_move(MOVE_PASS);
         self.moves(&mut moves);
         self.undo_move();
         if moves[0] != MOVE_PASS {
-            return false
+            return GameResult::None
         }
 
-        true
+        return if num_red_pieces > num_blue_pieces { GameResult::WinRed }
+               else if num_blue_pieces > num_red_pieces { GameResult::WinBlue }
+               else { GameResult::Draw }
     }
 
     pub fn eval(&mut self) -> i16
     {
-        (self.us().count_ones() - self.them().count_ones()) as i16
+        self.us().count_ones() as i16 - self.them().count_ones() as i16
     }
 }
