@@ -220,8 +220,6 @@ impl Board
     pub fn moves(&mut self, moves: &mut [Move; 256]) -> u8
     {
         let mut num_moves: u8 = 0;
-
-
         let mut us = self.us();
         let mut adjacent_target_squares: u64 = 0;
 

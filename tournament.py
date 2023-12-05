@@ -10,21 +10,21 @@ import signal
 from sprt import *
 
 # Constants
-GAME_MILLISECONDS = 10000
-GAME_INCREMENT_MILLISECONDS = 100
+GAME_MILLISECONDS = 8000
+GAME_INCREMENT_MILLISECONDS = 80
 GAME_RESULT_NORMAL = 0
 GAME_RESULT_OUT_OF_TIME = 1
 GAME_RESULT_ILLEGAL_MOVE = 2
 
 # SPRT settings
 alpha = 0.05
-beta = 0.1
+beta = 0.05
 elo0 = 0
 elo1 = 5
 cutechess_sprt = True
+RATING_INTERVAL = 20
 lower = log(beta / (1 - alpha))
 upper = log((1 - beta) / alpha)
-RATING_INTERVAL = 20
 
 class Engine:
     my_subprocess = None
@@ -33,6 +33,7 @@ class Engine:
     debug_file = None
 
     def __init__(self, exe, debug_file):
+        # Start subprocess with .exe provided, 2*concurrency subprocesses are launched in total
         self.my_subprocess = subprocess.Popen(exe, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         self.debug_file = debug_file
 
@@ -54,11 +55,13 @@ class Engine:
         assert isinstance(other, Engine)
         return self.my_subprocess == other.my_subprocess
 
+    # Send command to engine
     def send(self, command):
         self.debug_file.write("SEND {}: {}\n".format(self.name, command))
         self.my_subprocess.stdin.write(command + "\n")
         self.my_subprocess.stdin.flush()
 
+    # Read 1 line from engine and return it
     def read_line(self):
         line = self.my_subprocess.stdout.readline().strip()
         if line != None and line != "":
@@ -70,23 +73,22 @@ def worker(process_id, exe1, exe2, shared, openings):
     assert(len(shared.keys()) == 8)
     import random
 
-    board = None
+    board = None # Our ataxx board, using the python ataxx library
+
+    # Debug file for this worker's engines, a debug file is made for each worker (debug/1.txt, debug/2.txt, ...)
     debug_file = open("debug/" + str(process_id) + ".txt", "w")
-    eng1 = Engine(exe1, debug_file)
-    eng2 = Engine(exe2, debug_file)
-    eng_red = None
-    eng_blue = None
-    eng_to_play = None
 
-    print("Initialized board", process_id)
+    eng1 = Engine(exe1, debug_file) # First engine passed in program args
+    eng2 = Engine(exe2, debug_file) # Second engine passed in program args
+    eng_red = None     # Engine playing red, either eng1 or eng2
+    eng_blue = None    # Engine playing blue, either eng1 or eng2
+    eng_to_play = None # Engine to play current turn
 
+    print("Starting board", process_id)
+
+    # Send "go rtime <rtime> btime <btime> rinc <rinc> binc <binc>" to engine to play current turn
     def send_go():
-        nonlocal board
-        nonlocal eng1
-        nonlocal eng2
-        nonlocal eng_red
-        nonlocal eng_blue
-        nonlocal eng_to_play
+        nonlocal board, eng1, eng2, eng_red, eng_blue, eng_to_play
         assert board != None
         assert eng1 != None and eng2 != None
         assert eng_red != None and eng_blue != None
@@ -97,29 +99,19 @@ def worker(process_id, exe1, exe2, shared, openings):
         command += " btime " + str(eng_blue.milliseconds)
         command += " rinc " + str(GAME_INCREMENT_MILLISECONDS)
         command += " binc " + str(GAME_INCREMENT_MILLISECONDS)
-
         eng_to_play.send(command)
 
+    # Setup a game and play it until its over, returning the result (see constants)
     def play_game():
-        nonlocal board
-        nonlocal eng1
-        nonlocal eng2
-        nonlocal eng_red
-        nonlocal eng_blue
-        nonlocal eng_to_play
-        nonlocal openings
+        nonlocal board, eng1, eng2, eng_red, eng_blue, eng_to_play
         assert eng1 != None and eng2 != None
+        assert len(openings) == 880
 
-        # Prepare new game
-
+        # Choose a random opening from openings file and apply it to our board
         fen_opening = openings[random.randint(0, len(openings) - 1)].strip()
         board = ataxx.Board(fen_opening)
 
-        my_fen = fen_opening.replace("x", "r").replace("o", "b").strip()
-        eng1.send("position fen " + my_fen)
-        eng2.send("position fen " + my_fen)
-
-        # randomly decide engine color
+        # Randomly decide engine color
         if random.randint(0,1) == 0:
             eng_red = eng1
             eng_blue = eng2
@@ -127,99 +119,113 @@ def worker(process_id, exe1, exe2, shared, openings):
             eng_red = eng2
             eng_blue = eng1
 
-        color = my_fen.split(" ")[-3].strip()
-        assert color == "r" or color == "b"
-        eng_to_play = eng_red if color == "r" else eng_blue
+        # Initialize eng_to_play
+        color = fen_opening.split(" ")[-3].strip()
+        assert color == "x" or color == "o"
+        eng_to_play = eng_red if color == "x" else eng_blue
 
+        # Reset each engine's time
         eng1.milliseconds = eng2.milliseconds = GAME_MILLISECONDS
 
         assert board != None
-        assert eng_red != None and eng_blue != None
-        assert eng_to_play != None
+        assert eng_red != None and eng_blue != None and eng_to_play != None
         assert eng_red != eng_blue
         assert eng_to_play == eng_red or eng_to_play == eng_blue
         assert eng_to_play == eng1 or eng_to_play == eng2
 
-        # Play out game
+        # Play out game until its over
         while True:
+            # In the fen, replace "x" with "r" (red) and "o" with "b" (blue)
+            my_fen = board.get_fen().replace("x", "r").replace("o", "b").strip()
+            # Send "position fen <fen>" to both engines
+            eng1.send("position fen " + my_fen)
+            eng2.send("position fen " + my_fen)
+
+            # Send go command and initialize time this turn started
             send_go()
             start_time = time.time()
 
-            # wait for "bestmove" from engine
+            # Wait for "bestmove" from engine to play current turn
             while True:
                 line = eng_to_play.read_line()
                 if line.startswith("bestmove"):
                     break
 
+            # Subtract the time the engine took this turn
             eng_to_play.milliseconds -= int((time.time() - start_time) * 1000)
+
+            # Check if engine ran out of time
             if eng_to_play.milliseconds <= 0:
                 return GAME_RESULT_OUT_OF_TIME
 
+            # Get move as string from the "bestmove <move>" command
             str_move = line.split(" ")[-1].strip()
+
+            # Check that the move the engine sent is legal
             if not board.is_legal(ataxx.Move.from_san(str_move)):
                 return GAME_RESULT_ILLEGAL_MOVE
+
+            # Apply the move the engine sent to our board
             board.makemove(ataxx.Move.from_san(str_move))
 
+            # Check if game is over
             if board.gameover():
                 return GAME_RESULT_NORMAL
 
+            # Add increment time to both engines
             eng1.milliseconds += GAME_INCREMENT_MILLISECONDS
             eng2.milliseconds += GAME_INCREMENT_MILLISECONDS
 
+            # Switch sides: the other engine will play the next turn
             eng_to_play = eng_red if eng_to_play == eng_blue else eng_blue
 
-            fen = board.get_fen().replace("x", "r").replace("o", "b").strip()
-            eng1.send("position fen " + fen)
-            eng2.send("position fen " + fen)
-
+    # Main worker() loop, play games over and over
     def play_games():
-        nonlocal board
-        nonlocal eng1
-        nonlocal eng2
-        nonlocal eng_red
-        nonlocal eng_blue
-        nonlocal eng_to_play
-        nonlocal shared
+        nonlocal board, eng1, eng2, eng_red, eng_blue, eng_to_play, shared
 
-        # Main worker() loop, play games over and over
         while True:
+            # PLay a full game and get the result (see constants)
             game_result_type = play_game()
-            shared["games"].value += 1
 
+            # Update shared variables between the processes: wins, losses, draws, etc
+            shared["games"].value += 1
+            # If game over due to out of time or illegal move
             if game_result_type != GAME_RESULT_NORMAL:
-                if eng_to_play == eng_red:
+                if eng_to_play == eng_red: # red lost
                     shared["w_blue"].value += 1
                     shared["l_red"].value += 1
-                else:
+                else: # blue lost
                     assert eng_to_play == eng_blue
                     shared["l_blue"].value += 1
                     shared["w_red"].value += 1
-                if eng_to_play == eng1:
+                if eng_to_play == eng1: # eng1 lost
                     shared["l"].value += 1
-                else:
+                else: # eng1 won
                     assert eng_to_play == eng2
                     shared["w"].value += 1
+            # Else game is over naturally
             else:
                 str_result = board.result().strip()
-                if str_result == "1-0":
+                if str_result == "1-0": # red won
                     shared["w_red"].value += 1
                     shared["l_blue"].value += 1
-                    if eng1 == eng_red:
+                    if eng1 == eng_red: # eng1 won
                         shared["w"].value += 1
-                    else:
+                    else: # eng1 lost
                         assert eng1 == eng_blue and eng2 == eng_red
                         shared["l"].value += 1
-                elif str_result == "0-1":
+                elif str_result == "0-1": # blue won
                     shared["l_red"].value += 1
                     shared["w_blue"].value += 1
-                    if eng1 == eng_blue:
+                    if eng1 == eng_blue: # eng1 won
                         shared["w"].value += 1
-                    else:
+                    else: # eng1 lost
                         assert eng1 == eng_red and eng2 == eng_blue
                         shared["l"].value += 1
-                else:
+                else: # draw
                     shared["d"].value += 1
 
+            # Grab the current wins, losses, draws from the shared data
             games = shared["games"].value
             w = shared["w"].value
             l = shared["l"].value
@@ -229,31 +235,28 @@ def worker(process_id, exe1, exe2, shared, openings):
             l_red = shared["l_red"].value
             l_blue = shared["l_blue"].value
 
+            # Print new WDL
             print("(Board {}, {} vs {})".format(process_id, eng1.name, eng2.name), end="")
-            print(" Total WLD {}-{}-{} ({})".format(w, l, d, games), end="")
+            print(" Total w-l-d {}-{}-{} ({})".format(w, l, d, games), end="")
             if game_result_type == GAME_RESULT_OUT_OF_TIME:
-                if eng_to_play == eng1:
-                    print(" Eng1 " + eng1.name + " out of time", end ="")
-                else:
-                    assert eng_to_play == eng2
-                    print(" Eng2 " + eng2.name + " out of time", end ="")
+                print(eng_to_play.name, "out of time", end="")
             elif game_result_type == GAME_RESULT_ILLEGAL_MOVE:
-                if eng_to_play == eng1:
-                    print(" Eng1 " + eng1.name + " illegal move", end ="")
-                else:
-                    assert eng_to_play == eng2
-                    print(" Eng2 " + eng2.name + " illegal move", end ="")
+                print(eng_to_play.name, "illegal move", end="")
             print()
 
+            # Every RATING_INTERVAL games, print red WL, blue WL and current SPRT results
             if games % RATING_INTERVAL == 0:
-                print("Red WL {}-{}".format(w_red, l_red))
-                print("Blue WL {}-{}".format(w_blue, l_blue))
+                print("Red w-l {}-{} | Blue w-l {}-{}".format(w_red, l_red, w_blue, l_blue))
                 llr = sprt(w, l, d, elo0, elo1, cutechess_sprt)
                 e1, e2, e3 = elo_wld(w, l, d)
                 print(f"ELO: {round(e2, 1)} +- {round((e3 - e1) / 2, 1)} [{round(e1, 1)}, {round(e3, 1)}]")
                 print(f"LLR: {llr:.3} [{elo0}, {elo1}] ({lower:.3}, {upper:.3})")
-                print("H1 accepted" if llr >= upper else ("H0 accepted" if llr <= lower else "Continue playing"))
+                if llr >= upper:
+                    print("H1 accepted")
+                elif llr <= lower:
+                    print("H0 accepted")
 
+    # Start the main worker() loop
     play_games()
 
 if __name__ == "__main__":
@@ -267,12 +270,12 @@ if __name__ == "__main__":
     print("Concurrency", args.concurrency)
     print()
 
-    # Processes list (size = concurrency)
+    # Processes/workers list (size = concurrency)
     processes = []
 
     def quit():
         print("Terminating engines...")
-        # Wait for all processes to finish
+        # Wait for all processes/workers to finish
         for process in processes:
             process.join()
         print("Engines terminated")
@@ -285,7 +288,7 @@ if __name__ == "__main__":
     # Register the CTRL+C signal handler
     signal.signal(signal.SIGINT, lambda signum, frame: handle_ctrl_c())
 
-    # Load openings
+    # Load openings from openings file
     openings_file = open("openings_3ply.txt", "r")
     openings = openings_file.readlines()
     openings_file.close()
@@ -294,28 +297,31 @@ if __name__ == "__main__":
     # Create folder 'debug'
     if not os.path.exists("debug"):
         os.makedirs("debug")
-    # Delete all files in 'debug'
+    # Delete all files in 'debug' folder
     else:
         for filename in os.listdir("debug"):
             file_path = os.path.join("debug", filename)
-        if os.path.isfile(file_path):
-            os.unlink(file_path)
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
 
-    # Create and run <concurrency> processes, each having 2 subprocesses
+    # Create and run <concurrency> processes/workers, each having 2 subprocesses
     with multiprocessing.Manager() as manager:
+        # Data shared between the <concurrency> processes/workers
         shared = {
-            'games': manager.Value('i', 0),
-            'w': manager.Value('i', 0),
-            'l': manager.Value('i', 0),
-            'd': manager.Value('i', 0),
-            'w_red': manager.Value('i', 0),
-            'l_red': manager.Value('i', 0),
-            'w_blue': manager.Value('i', 0),
-            'l_blue': manager.Value('i', 0)
+            'games': manager.Value('i', 0),  # Total games finished
+            'w': manager.Value('i', 0),      # Engine1 wins
+            'l': manager.Value('i', 0),      # Engine1 losses
+            'd': manager.Value('i', 0),      # Draws
+            'w_red': manager.Value('i', 0),  # Red wins
+            'l_red': manager.Value('i', 0),  # Red losses
+            'w_blue': manager.Value('i', 0), # Blue wins
+            'l_blue': manager.Value('i', 0)  # Blue losses
         }
+        # Launch <concurrency> processes/workers, each will create 2 subprocesses (1 for each engine)
         for i in range(args.concurrency):
             process = multiprocessing.Process(target=worker, args=(i+1, args.engine1, args.engine2, shared, openings))
             processes.append(process)
             process.start()
+        # Wait for processes/workers to end
         for p in processes:
             p.join()

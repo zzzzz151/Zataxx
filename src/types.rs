@@ -48,6 +48,17 @@ pub enum GameResult {
     Draw = 3
 }
 
+impl ToString for GameResult {
+    fn to_string(&self) -> String {
+        match self {
+            GameResult::None => String::from("No result"),
+            GameResult::WinRed => String::from("Red wins"),
+            GameResult::WinBlue => String::from("Blue wins"),
+            GameResult::Draw => String::from("Draw"),
+        }
+    }
+}
+
 pub const START_FEN: &str = "r5b/7/7/7/7/7/b5r r 0 1";
 pub const START_FEN2: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
 

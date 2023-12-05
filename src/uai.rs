@@ -39,6 +39,9 @@ pub fn uai_loop()
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
                 perft_split(&mut board, depth);
              }
+             "gameresult" => {
+                println!("{}", board.get_game_result().to_string());
+             }
             _ => { }
         }
 
@@ -101,5 +104,6 @@ pub fn go(tokens: Vec<&str>, board: &mut Board)
     }
 
     let best_move: Move = search(board, milliseconds);
+    assert!(best_move != MOVE_NONE);
     println!("bestmove {}", move_to_str(best_move));
 }

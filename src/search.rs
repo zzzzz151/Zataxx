@@ -27,7 +27,7 @@ pub fn search(board: &mut Board, milliseconds: u32) -> Move
     for iteration_depth in 1..=MAX_DEPTH 
     {
         let best_move_before: Move = search_data.best_move_root;
-        let iteration_score = negamax(&mut search_data, iteration_depth as i16, 0 as u16, -INFINITY, INFINITY);
+        let iteration_score = negamax(&mut search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
         if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
             search_data.best_move_root = best_move_before;
@@ -45,21 +45,24 @@ pub fn search(board: &mut Board, milliseconds: u32) -> Move
     search_data.best_move_root
 }
 
-fn negamax(search_data: &mut SearchData, depth: i16, ply: u16, mut alpha: i16, beta: i16) -> i16
+fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
     if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
         return 0; 
     }
 
-    let game_result: GameResult = search_data.board.get_game_result();
-    if game_result == GameResult::Draw {
-        return 0;
-    }
-    else if game_result == GameResult::WinRed {
-        return if search_data.board.color == Color::Red {INFINITY} else {-INFINITY};
-    }
-    else if game_result == GameResult::WinBlue {
-        return if search_data.board.color == Color::Blue {INFINITY} else {-INFINITY};
+    if ply > 0
+    {
+        let game_result: GameResult = search_data.board.get_game_result();
+        if game_result == GameResult::Draw {
+            return 0;
+        }
+        else if game_result == GameResult::WinRed {
+            return if search_data.board.color == Color::Red {INFINITY - ply} else {-INFINITY + ply};
+        }
+        else if game_result == GameResult::WinBlue {
+            return if search_data.board.color == Color::Blue {INFINITY - ply} else {-INFINITY + ply};
+        }
     }
 
     if depth <= 0 { return search_data.board.eval(); }
