@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-use lazy_static::lazy_static;
-use std::sync::Mutex;
+use std::time::Instant;
 use crate::types::*;
 
 /*
@@ -63,10 +62,25 @@ pub fn digit_to_char(num: u8) -> char {
     (num + b'0') as char
 }
 
-lazy_static! {
-    pub static ref ADJACENT_SQUARES_TABLE: Mutex<[u64; 49]> = Mutex::new([0; 49]);
-    pub static ref LEAP_SQUARES_TABLE: Mutex<[u64; 49]> = Mutex::new([0; 49]);
-}
+pub const ADJACENT_SQUARES_TABLE: [u64; 49] = [
+    386, 901, 1802, 3604, 7208, 14416, 12320,
+    49411, 115335, 230670, 461340, 922680, 1845360, 1577056,
+    6324608, 14762880, 29525760, 59051520, 118103040, 236206080, 201863168, 
+    809549824, 1889648640, 3779297280, 7558594560, 15117189120, 30234378240, 25838485504, 
+    103622377472, 241875025920, 483750051840, 967500103680, 1935000207360, 3870000414720, 3307326144512, 
+    13263664316416, 30960003317760, 61920006635520, 123840013271040, 247680026542080, 495360053084160, 423337746497536,
+    8899172237312, 22230750724096, 44461501448192, 88923002896384, 177846005792768, 355692011585536, 144036023238656,
+];
+
+pub const LEAP_SQUARES_TABLE: [u64; 49] = [
+    115204, 246792, 510097, 1020194, 2040388, 1967112, 1837072,
+    14746116, 31589384, 65292433, 130584866, 261169732, 251790344, 235145232, 
+    1887502855, 4043441167, 8357431455, 16714862910, 33429725820, 32229164152, 30098589808, 
+    241600365440, 517560469376, 1069751226240, 2139502452480, 4279004904960, 4125333011456, 3852619495424, 
+    30924846776320, 66247740080128, 136928156958720, 273856313917440, 547712627834880, 528042625466368, 493135295414272, 
+    17730713419776, 35461428936704, 75355534655488, 150711069310976, 301422138621952, 35461649137664, 70923029839872, 
+    17731504046080, 35463276527616, 75359227740160, 150718455480320, 301436910960640, 35491462250496, 70948564762624,
+];
 
 const ADJACENT_OFFSETS: [[i8; 2]; 8] = [
     [0, 1], [0, -1], [1,  0], [-1,  0],
@@ -80,10 +94,11 @@ const LEAP_OFFSETS: [[i8; 2]; 16] = [
     [2, 1], [2, -1], [-2, 1], [-2, -1],
 ];
 
-pub fn init_attacks()
+pub fn get_attacks() -> ([u64; 49], [u64; 49])
 {
-    let mut adjacent_squares_table = ADJACENT_SQUARES_TABLE.lock().unwrap();
-    let mut leap_squares_table = LEAP_SQUARES_TABLE.lock().unwrap();
+    let mut adjacent_squares_table: [u64; 49] = [0; 49];
+    let mut leap_squares_table: [u64; 49] = [0; 49];
+
     for sq in 0..49
     {
         adjacent_squares_table[sq] = 0;
@@ -112,6 +127,8 @@ pub fn init_attacks()
             }
         }
     }
+
+    return (adjacent_squares_table, leap_squares_table)
 }
 
 pub fn print_bitboard(bb: u64) {
@@ -157,4 +174,15 @@ pub fn str_to_move(mov: &str) -> Move {
     let from: Square = str_to_square(str_from);
     let to: Square = str_to_square(str_to);
     [from, to]
+}
+
+pub fn milliseconds_elapsed(start_time: Instant) -> u32 {
+    let now = Instant::now();
+    now.duration_since(start_time).as_millis() as u32
+}
+
+pub fn is_time_up(start_time: Instant, milliseconds: u32) -> bool
+{
+    let ms_elapsed = milliseconds_elapsed(start_time);
+    ms_elapsed >= milliseconds
 }

@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use std::io;
 use crate::types::*;
 use crate::utils::*;
@@ -68,7 +65,7 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
     else if tokens[1] == "fen"
     {
         let mut fen = String::new();
-        for (i, token) in tokens.iter().skip(2).enumerate() {
+        for token in tokens.iter().skip(2) {
             if token == &"moves" {
                 break;
             }
@@ -94,6 +91,15 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
 
 pub fn go(tokens: Vec<&str>, board: &mut Board)
 {
-    let best_move: Move = search(board);
+    let mut milliseconds: u32 = 4294967295;
+    for i in 1..tokens.len() {
+        if (tokens[i] == "rtime" && board.color == Color::Red)
+        || (tokens[i] == "btime" && board.color == Color::Blue)
+        {
+            milliseconds = tokens[i+1].parse().unwrap();
+        }
+    }
+
+    let best_move: Move = search(board, milliseconds);
     println!("bestmove {}", move_to_str(best_move));
 }

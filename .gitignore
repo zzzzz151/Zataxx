@@ -4,8 +4,16 @@
 .vscode
 src-test
 src-test/
+test
+test/
 target
 target/
+__pycache__
+__pycache__/
+temp
+temp/
+debug
+debug/
 
 games.txt
 games.pgn
