@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use crate::board::*;
 use crate::types::*;
 use crate::utils::*;

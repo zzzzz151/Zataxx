@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use std::io;
 use crate::types::*;
 use crate::utils::*;
@@ -68,7 +65,7 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
     else if tokens[1] == "fen"
     {
         let mut fen = String::new();
-        for (i, token) in tokens.iter().skip(2).enumerate() {
+        for token in tokens.iter().skip(2) {
             if token == &"moves" {
                 break;
             }

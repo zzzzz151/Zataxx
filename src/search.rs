@@ -1,8 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
-use lazy_static::lazy_static;
-use std::sync::{Mutex, RwLock};
 use std::time::Instant;
 use crate::types::*;
 use crate::utils::*;
@@ -11,67 +6,66 @@ use crate::board::*;
 pub const INFINITY: i16 = 32500;
 pub const MAX_DEPTH: u8 = 255;
 
-lazy_static! {
-    static ref START_TIME: Mutex<Instant> = Mutex::new(Instant::now());
-    static ref TURN_MILLISECONDS: Mutex<u32> = Mutex::new(0);
+struct SearchData<'a> {
+    board: &'a mut Board,
+    start_time: Instant,
+    turn_milliseconds: u32,
+    best_move_root: Move
 }
 
 pub fn search(board: &mut Board, milliseconds: u32) -> Move
 {
-    {
-    let mut start_time = START_TIME.lock().unwrap();
-    let mut turn_milliseconds = TURN_MILLISECONDS.lock().unwrap();
-    *start_time = Instant::now();
-    *turn_milliseconds = milliseconds / 24;
-    }
+    let mut search_data = SearchData {
+        board: board,
+        start_time: Instant::now(),
+        turn_milliseconds: milliseconds / 24,
+        best_move_root: MOVE_NONE
 
-    let mut best_move = MOVE_NONE;
+    };
 
     // ID (Iterative deepening)
     for iteration_depth in 1..=MAX_DEPTH 
     {
-        let (iteration_score, iteration_move) = negamax(board, iteration_depth as i16, 0 as u16);
+        let best_move_before: Move = search_data.best_move_root;
+        let iteration_score = negamax(&mut search_data, iteration_depth as i16, 0 as u16, -INFINITY, INFINITY);
 
-        if is_time_up() {
+        if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
+            search_data.best_move_root = best_move_before;
             break;
         }
 
-        best_move = iteration_move;
-
-        { 
-        let start_time = START_TIME.lock().unwrap(); 
-        println!("info depth {} time {} pv {}",
-                 iteration_depth, milliseconds_elapsed(*start_time), move_to_str(best_move));
-        }
+        println!("info depth {} score {} time {} pv {}",
+                 iteration_depth, 
+                 iteration_score,
+                 milliseconds_elapsed(search_data.start_time), 
+                 move_to_str(search_data.best_move_root));
     }
 
-    assert!(best_move != MOVE_NONE);
-    best_move
+    assert!(search_data.best_move_root != MOVE_NONE);
+    search_data.best_move_root
 }
 
-fn negamax(board: &mut Board, depth: i16, ply: u16) -> (i16, Move)
+fn negamax(search_data: &mut SearchData, depth: i16, ply: u16, mut alpha: i16, beta: i16) -> i16
 {
-    if is_time_up() {
-        return (0, MOVE_NONE);
+    if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
+        return 0; 
     }
 
-    let game_result: GameResult = board.get_game_result();
+    let game_result: GameResult = search_data.board.get_game_result();
     if game_result == GameResult::Draw {
-        return (0, MOVE_NONE);
+        return 0;
     }
     else if game_result == GameResult::WinRed {
-        return if board.color == Color::Red {(INFINITY, MOVE_NONE)} else {(-INFINITY, MOVE_NONE)};
+        return if search_data.board.color == Color::Red {INFINITY} else {-INFINITY};
     }
     else if game_result == GameResult::WinBlue {
-        return if board.color == Color::Blue {(INFINITY, MOVE_NONE)} else {(-INFINITY, MOVE_NONE)};
+        return if search_data.board.color == Color::Blue {INFINITY} else {-INFINITY};
     }
 
-    if depth <= 0 {
-        return (board.eval(), MOVE_NONE);
-    }
+    if depth <= 0 { return search_data.board.eval(); }
 
     let mut moves: [Move; 256] = [MOVE_NONE; 256];
-    let num_moves = board.moves(&mut moves);
+    let num_moves = search_data.board.moves(&mut moves);
 
     let mut best_score: i16 = -INFINITY;
     let mut best_move: Move = MOVE_NONE;
@@ -79,28 +73,30 @@ fn negamax(board: &mut Board, depth: i16, ply: u16) -> (i16, Move)
     for i in 0..num_moves
     {
         let mov: Move = moves[i as usize];
-        board.make_move(mov);
-        let (mut score, child_move) = negamax(board, depth - 1, ply + 1);
-        score = -score;
-        board.undo_move();
+        search_data.board.make_move(mov);
+        let score = -negamax(search_data, depth - 1, ply + 1, -beta, -alpha);
+        search_data.board.undo_move();
 
-        if is_time_up() {
-            return (0, MOVE_NONE);
+        if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
+            return 0; 
         }
 
-        if score >= best_score {
-            best_score = score;
-            best_move = mov;
+        if score > best_score { best_score = score; }
+
+        if score <= alpha { continue; } // Fail low
+
+        alpha = score;
+        best_move = mov;
+        if ply == 0 { 
+            search_data.best_move_root = mov; 
         }
+
+        if score < beta { continue; }
+
+        // Fail high / beta cutoff
+
+        break; // Fail high / beta cutoff
     }
 
-    (best_score, best_move)
-}
-
-fn is_time_up() -> bool
-{
-    let start_time = START_TIME.lock().unwrap();
-    let turn_milliseconds = TURN_MILLISECONDS.lock().unwrap();
-    milliseconds_elapsed(*start_time) >= (*turn_milliseconds).into()
-
+    best_score
 }

@@ -1,9 +1,5 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 use crate::types::*;
 use crate::utils::*;
-use crate::search::*;
 
 #[derive(Clone)]
 pub struct Board 
@@ -182,8 +178,7 @@ impl Board
         // create piece on destination
         self.bitboards[self.color as usize] |= 1u64 << mov[TO];
 
-        let adjacent_squares_table = ADJACENT_SQUARES_TABLE.lock().unwrap();
-        let adjacent_squares: u64 = adjacent_squares_table[mov[TO] as usize];
+        let adjacent_squares: u64 = ADJACENT_SQUARES_TABLE[mov[TO] as usize];
 
         // if destination is not adjacent to source, remove piece at source
         if mov[FROM] != mov[TO] {
@@ -226,8 +221,6 @@ impl Board
     {
         let mut num_moves: u8 = 0;
 
-        let adjacent_squares_table = ADJACENT_SQUARES_TABLE.lock().unwrap();
-        let leap_squares_table = LEAP_SQUARES_TABLE.lock().unwrap();
 
         let mut us = self.us();
         let mut adjacent_target_squares: u64 = 0;
@@ -235,8 +228,8 @@ impl Board
         while us > 0
         {
             let from: Square = pop_lsb(&mut us) as Square;
-            adjacent_target_squares |= adjacent_squares_table[from as usize];
-            let mut leap_squares: u64 = leap_squares_table[from as usize]
+            adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
+            let mut leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]
                                         & !self.occupancy()
                                         & !self.blocked;
             while leap_squares > 0 {
