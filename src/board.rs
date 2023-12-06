@@ -1,5 +1,6 @@
 use crate::types::*;
 use crate::utils::*;
+use crate::tables::*;
 
 #[derive(Clone)]
 pub struct Board 
@@ -306,6 +307,20 @@ impl Board
 
     pub fn eval(&mut self) -> i16
     {
-        self.us().count_ones() as i16 - self.them().count_ones() as i16
+        let mut eval: i16 = 0;
+
+        let mut us: u64 = self.us();
+        while us > 0 {
+            let sq: u8 = pop_lsb(&mut us);
+            eval += PST[sq as usize];
+        }
+
+        let mut them: u64 = self.them();
+        while them > 0 {
+            let sq: u8 = pop_lsb(&mut them);
+            eval -= PST[sq as usize];
+        }
+
+        eval
     }
 }

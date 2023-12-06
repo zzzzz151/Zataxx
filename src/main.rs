@@ -1,5 +1,6 @@
 mod types;
 mod utils;
+mod tables;
 mod board;
 mod perft;
 mod uai;
