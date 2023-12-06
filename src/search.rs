@@ -85,15 +85,21 @@ fn negamax(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i1
 
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
+    let tt_move = if tt_hit {tt_entry_probed.best_move} else {MOVE_NONE};
 
-    // Score moves by num pieces captured
+    // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];
     if num_moves > 1 {
         for i in 0..num_moves { 
-            let to: Square = moves[i as usize][TO];
-            let num_captured: u8 = (ADJACENT_SQUARES_TABLE[to as usize] & search_data.board.them()).count_ones() as u8;
-            let is_single: bool = to == moves[i as usize][FROM];
-            moves_scores[i as usize] = num_captured + (is_single as u8);
+            let mov: Move = moves[i as usize];
+            if mov == tt_move {
+                moves_scores[i as usize] = 255;
+            }
+            else {
+                let num_captured: u8 = (ADJACENT_SQUARES_TABLE[mov[TO] as usize] & search_data.board.them()).count_ones() as u8;
+                let is_single: bool = mov[TO] == mov[FROM];
+                moves_scores[i as usize] = num_captured + (is_single as u8);
+            }
         }
     }
 
