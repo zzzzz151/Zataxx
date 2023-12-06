@@ -160,3 +160,15 @@ pub fn milliseconds_elapsed(start_time: Instant) -> u32 {
     let now = Instant::now();
     now.duration_since(start_time).as_millis() as u32
 }
+
+pub fn incremental_sort(moves: &mut MovesArray, num_moves: u8, moves_scores: &mut [u8; 256], i: usize) -> Move
+{
+    for j in ((i+1) as usize)..(num_moves as usize) {
+        if moves_scores[j] > moves_scores[i] {
+            (moves[i], moves[j]) = (moves[j], moves[i]);
+            (moves_scores[i], moves_scores[j]) = (moves_scores[j], moves_scores[i]);
+        }
+    }
+
+    moves[i]
+}

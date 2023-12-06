@@ -1,4 +1,5 @@
 use std::time::Instant;
+use crate::tables::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
@@ -69,12 +70,23 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
 
+    // Score moves by num pieces captured
+    let mut moves_scores: [u8; 256] = [0; 256];
+    if num_moves > 1 {
+        for i in 0..num_moves { 
+            let to: Square = moves[i as usize][TO];
+            let num_captured: u8 = (ADJACENT_SQUARES_TABLE[to as usize] & search_data.board.them()).count_ones() as u8;
+            let is_single: bool = to == moves[i as usize][FROM];
+            moves_scores[i as usize] = num_captured + (is_single as u8);
+        }
+    }
+
     let mut best_score: i16 = -INFINITY;
     let mut best_move: Move = MOVE_NONE;
 
     for i in 0..num_moves
     {
-        let mov: Move = moves[i as usize];
+        let mov: Move = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
         search_data.board.make_move(mov);
         let score = -negamax(search_data, depth - 1, ply + 1, -beta, -alpha);
         search_data.board.undo_move();
