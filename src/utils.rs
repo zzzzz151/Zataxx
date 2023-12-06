@@ -160,9 +160,3 @@ pub fn milliseconds_elapsed(start_time: Instant) -> u32 {
     let now = Instant::now();
     now.duration_since(start_time).as_millis() as u32
 }
-
-pub fn is_time_up(start_time: Instant, milliseconds: u32) -> bool
-{
-    let ms_elapsed = milliseconds_elapsed(start_time);
-    ms_elapsed >= milliseconds
-}

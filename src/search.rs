@@ -6,7 +6,7 @@ use crate::board::*;
 pub const INFINITY: i16 = 32500;
 pub const MAX_DEPTH: u8 = 255;
 
-struct SearchData<'a> {
+pub struct SearchData<'a> {
     board: &'a mut Board,
     start_time: Instant,
     turn_milliseconds: u32,
@@ -20,7 +20,6 @@ pub fn search(board: &mut Board, milliseconds: u32) -> Move
         start_time: Instant::now(),
         turn_milliseconds: milliseconds / 24,
         best_move_root: MOVE_NONE
-
     };
 
     // ID (Iterative deepening)
@@ -29,7 +28,7 @@ pub fn search(board: &mut Board, milliseconds: u32) -> Move
         let best_move_before: Move = search_data.best_move_root;
         let iteration_score = negamax(&mut search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
-        if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
+        if is_time_up(&mut search_data) {
             search_data.best_move_root = best_move_before;
             break;
         }
@@ -47,7 +46,7 @@ pub fn search(board: &mut Board, milliseconds: u32) -> Move
 
 fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
-    if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
+    if is_time_up(search_data) {
         return 0; 
     }
 
@@ -67,7 +66,7 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
 
     if depth <= 0 { return search_data.board.eval(); }
 
-    let mut moves: [Move; 256] = [MOVE_NONE; 256];
+    let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
 
     let mut best_score: i16 = -INFINITY;
@@ -80,7 +79,7 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
         let score = -negamax(search_data, depth - 1, ply + 1, -beta, -alpha);
         search_data.board.undo_move();
 
-        if is_time_up(search_data.start_time, search_data.turn_milliseconds) {
+        if is_time_up(search_data) {
             return 0; 
         }
 
@@ -102,4 +101,8 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
     }
 
     best_score
+}
+
+fn is_time_up(search_data: &mut SearchData) -> bool {
+    milliseconds_elapsed(search_data.start_time) >= search_data.turn_milliseconds
 }

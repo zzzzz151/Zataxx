@@ -67,6 +67,8 @@ pub const FROM: usize = 0;
 pub const TO: usize = 1;
 pub const MOVE_NONE: Move = [255, 255];
 pub const MOVE_PASS: Move = [254, 254];
+pub type MovesArray = [Move; 256];
+pub const EMPTY_MOVES_ARRAY: MovesArray = [MOVE_NONE; 256];
 
 /*
 42 43 44 45 46 47 48

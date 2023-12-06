@@ -8,7 +8,7 @@ pub struct Board
     pub color: Color,
     pub bitboards: [u64; 2], // [color]
     pub blocked: u64,
-    pub plies_since_capture: u16,
+    pub plies_since_single: u16,
     pub current_move: u16,
     pub states: Vec<Board>, 
     pub mov: Move,
@@ -21,7 +21,7 @@ impl Board
             color: Color::Red,
             bitboards: [0, 0],
             blocked: 0,
-            plies_since_capture: 0,
+            plies_since_single: 0,
             current_move: 1,
             states: Vec::new(),
             mov: MOVE_NONE,
@@ -40,7 +40,7 @@ impl Board
         let fen_rows: Vec<&str> = fen_split[0].split('/').map(str::trim).collect();
 
         board.color = if fen_split[1] == "r" || fen_split[1] == "x" {Color::Red} else {Color::Blue};
-        board.plies_since_capture = fen_split[2].parse().unwrap();
+        board.plies_since_single = fen_split[2].parse().unwrap();
         board.current_move = fen_split[3].parse().unwrap();
 
         // Parse fen rows/pieces
@@ -104,7 +104,7 @@ impl Board
         my_fen.push(if self.color == Color::Red {'r'} else {'b'});
 
         my_fen.push(' ');
-        my_fen += &self.plies_since_capture.to_string();
+        my_fen += &self.plies_since_single.to_string();
 
         my_fen.push(' ');
         my_fen += &self.current_move.to_string();
@@ -191,11 +191,11 @@ impl Board
         self.bitboards[self.color as usize] |= enemies_captured;
         self.bitboards[opp_color(self.color) as usize] ^= enemies_captured;
 
-        if enemies_captured > 0 {
-            self.plies_since_capture = 0;
+        if mov[FROM] == mov[TO] {
+            self.plies_since_single = 0;
         }
         else {
-            self.plies_since_capture += 1;
+            self.plies_since_single += 1;
         }
 
         self.color = opp_color(self.color);
@@ -208,7 +208,7 @@ impl Board
         self.color = last_state.color;
         self.bitboards = last_state.bitboards;
         self.blocked = last_state.blocked;
-        self.plies_since_capture = last_state.plies_since_capture;
+        self.plies_since_single = last_state.plies_since_single;
         self.current_move = last_state.current_move;
         self.mov = last_state.mov;
         self.states.pop();
@@ -218,7 +218,7 @@ impl Board
         self.bitboards[Color::Red as usize] | self.bitboards[Color::Blue as usize]
     }
 
-    pub fn moves(&mut self, moves: &mut [Move; 256]) -> u8
+    pub fn moves(&mut self, moves: &mut MovesArray) -> u8
     {
         let mut num_moves: u8 = 0;
         let mut us = self.us();
@@ -283,11 +283,11 @@ impl Board
                     else { GameResult::Draw }
         }
 
-        if self.plies_since_capture >= 100 {
+        if self.plies_since_single >= 100 {
             return GameResult::Draw;
         }
 
-        let mut moves: [Move; 256] = [MOVE_NONE; 256];
+        let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
         self.moves(&mut moves);
         if moves[0] != MOVE_PASS {
             return GameResult::None

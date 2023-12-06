@@ -12,7 +12,7 @@ pub fn perft(board: &mut Board, depth: u8) -> u64
         return 0u64
     }
 
-    let mut moves: [Move; 256] = [MOVE_NONE; 256];
+    let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = board.moves(&mut moves);
     let mut nodes: u64 = 0;
 
@@ -30,7 +30,7 @@ pub fn perft_split(board: &mut Board, depth: u8)
 {
     assert!(depth > 0);
 
-    let mut moves: [Move; 256] = [MOVE_NONE; 256];
+    let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = board.moves(&mut moves);
     let mut total_nodes: u64 = 0;
 
