@@ -3,9 +3,10 @@ use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
 use crate::perft::*;
+use crate::tt::*;
 use crate::search::*;
 
-pub fn uai_loop()
+pub fn uai_loop(tt: &mut TT)
 {
     let mut input = String::new();
     let mut board: Board = Board::new(START_FEN);
@@ -22,14 +23,27 @@ pub fn uai_loop()
                 println!("id author zzzzz");
                 println!("uaiok");
             }
-            "setoption" => { setoption(input_split); }
-            "uainewgame" => { uainewgame(); }
-            "position" => { position(input_split, &mut board); }
-            "go" => { go(input_split, &mut board); }
+            "setoption" => { 
+                setoption(input_split, tt); 
+            }
+            "isready" => { 
+                println!("readyok"); 
+            }
+            "uainewgame" => { 
+                tt.reset();
+            }
+            "position" => { 
+                position(input_split, &mut board);
+             }
+            "go" => { 
+                go(input_split, &mut board, tt);
+             }
             "d" | "display" | "print" | "show" => { 
                 board.print(); 
             }
-            "perfttests" => { run_perft_tests(); }
+            "perfttests" => { 
+                run_perft_tests();
+             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
                 let nodes: u64 = perft(&mut board, depth);
@@ -49,14 +63,14 @@ pub fn uai_loop()
     }
 }
 
-pub fn setoption(tokens: Vec<&str>)
+pub fn setoption(tokens: Vec<&str>, tt: &mut TT)
 {
+    let option_name = tokens[2];
+    let option_value = tokens[4];
 
-}
-
-pub fn uainewgame()
-{
-
+    if option_name == "hash" || option_name == "Hash" {
+        *tt = TT::new(option_value.parse::<usize>().unwrap());
+    }
 }
 
 pub fn position(tokens: Vec<&str>, board: &mut Board)
@@ -89,10 +103,9 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
             break;
         }
     }
-
 }
 
-pub fn go(tokens: Vec<&str>, board: &mut Board)
+pub fn go(tokens: Vec<&str>, board: &mut Board, tt: &mut TT)
 {
     let mut milliseconds: u32 = 4294967295;
     for i in 1..tokens.len() {
@@ -103,7 +116,7 @@ pub fn go(tokens: Vec<&str>, board: &mut Board)
         }
     }
 
-    let best_move: Move = search(board, milliseconds);
+    let best_move: Move = search(board, milliseconds, tt);
     assert!(best_move != MOVE_NONE);
     println!("bestmove {}", move_to_str(best_move));
 }

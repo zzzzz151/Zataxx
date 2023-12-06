@@ -3,24 +3,26 @@ use crate::tables::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
+use crate::tt::*;
 
-pub const INFINITY: i16 = 32500;
-pub const MAX_DEPTH: u8 = 255;
+pub const MAX_DEPTH: u8 = 100;
 
 pub struct SearchData<'a> {
     board: &'a mut Board,
     start_time: Instant,
     turn_milliseconds: u32,
-    best_move_root: Move
+    best_move_root: Move,
+    tt: &'a mut TT
 }
 
-pub fn search(board: &mut Board, milliseconds: u32) -> Move
+pub fn search(board: &mut Board, milliseconds: u32, tt: &mut TT) -> Move
 {
     let mut search_data = SearchData {
         board: board,
         start_time: Instant::now(),
         turn_milliseconds: milliseconds / 24,
-        best_move_root: MOVE_NONE
+        best_move_root: MOVE_NONE,
+        tt: tt
     };
 
     // ID (Iterative deepening)
@@ -45,7 +47,7 @@ pub fn search(board: &mut Board, milliseconds: u32) -> Move
     search_data.best_move_root
 }
 
-fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
+fn negamax(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
     if is_time_up(search_data) {
         return 0; 
@@ -67,6 +69,20 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
 
     if depth <= 0 { return search_data.board.eval(); }
 
+    depth = clamp(depth, 0, MAX_DEPTH as i16);
+
+    let tt_entry_index = search_data.board.zobrist_hash as usize % search_data.tt.entries.len();
+    let tt_entry_probed: &TTEntry = &search_data.tt.entries[tt_entry_index];
+    let tt_hit: bool = search_data.board.zobrist_hash == tt_entry_probed.zobrist_hash;
+
+    if ply > 0 && tt_hit && tt_entry_probed.depth >= (depth as u8)
+    && (tt_entry_probed.bound == Bound::Exact
+    || (tt_entry_probed.bound == Bound::Lower && tt_entry_probed.score >= beta)
+    || (tt_entry_probed.bound == Bound::Upper && tt_entry_probed.score <= alpha))
+    {
+        return tt_entry_probed.adjusted_score(ply);
+    }
+
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
 
@@ -83,6 +99,7 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
 
     let mut best_score: i16 = -INFINITY;
     let mut best_move: Move = MOVE_NONE;
+    let original_alpha = alpha;
 
     for i in 0..num_moves
     {
@@ -111,6 +128,19 @@ fn negamax(search_data: &mut SearchData, depth: i16, ply: i16, mut alpha: i16, b
 
         break; // Fail high / beta cutoff
     }
+
+    let tt_entry: &mut TTEntry = &mut search_data.tt.entries[tt_entry_index];
+    tt_entry.zobrist_hash = search_data.board.zobrist_hash;
+    tt_entry.depth = depth as u8;
+    tt_entry.best_move = best_move;
+
+    tt_entry.score = if best_score >= MIN_WIN_SCORE { best_score + ply }
+                     else if best_score <= -MIN_WIN_SCORE { best_score - ply }
+                     else { best_score };
+
+    tt_entry.bound = if best_score <= original_alpha { Bound::Upper }
+                     else if best_score >= beta { Bound::Lower }
+                     else { Bound::Exact };
 
     best_score
 }

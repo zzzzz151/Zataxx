@@ -69,9 +69,9 @@ class Engine:
         return line
 
 def worker(process_id, exe1, exe2, shared, openings):
-    assert(len(openings) == 880)
-    assert(len(shared.keys()) == 8)
     import random
+    assert(len(openings) >= 10)
+    assert(len(shared.keys()) == 8)
 
     board = None # Our ataxx board, using the python ataxx library
 
@@ -83,6 +83,10 @@ def worker(process_id, exe1, exe2, shared, openings):
     eng_red = None     # Engine playing red, either eng1 or eng2
     eng_blue = None    # Engine playing blue, either eng1 or eng2
     eng_to_play = None # Engine to play current turn
+
+    # Shuffle openings and initialize current opening index counter
+    random.shuffle(openings)
+    current_opening = 0
 
     print("Starting board", process_id)
 
@@ -103,12 +107,19 @@ def worker(process_id, exe1, exe2, shared, openings):
 
     # Setup a game and play it until its over, returning the result (see constants)
     def play_game():
-        nonlocal board, eng1, eng2, eng_red, eng_blue, eng_to_play
+        nonlocal board, eng1, eng2, eng_red, eng_blue, eng_to_play, current_opening
         assert eng1 != None and eng2 != None
-        assert len(openings) == 880
+        assert len(openings) >= 10
 
-        # Choose a random opening from openings file and apply it to our board
-        fen_opening = openings[random.randint(0, len(openings) - 1)].strip()
+        eng1.send("uainewgame")
+        eng2.send("uainewgame")
+
+        # Get the next opening from the shuffled openings list
+        fen_opening = openings[current_opening].strip()
+        current_opening += 1
+        if current_opening >= len(openings):
+            current_opening = 0
+
         board = ataxx.Board(fen_opening)
 
         # Randomly decide engine color
@@ -260,6 +271,8 @@ def worker(process_id, exe1, exe2, shared, openings):
     play_games()
 
 if __name__ == "__main__":
+    import random
+
     # Parse args
     parser = argparse.ArgumentParser(description="Run tournament between 2 Ataxx engines")
     parser.add_argument("--engine1", help="Engine 1 exe", type=str, required=True)
@@ -292,7 +305,7 @@ if __name__ == "__main__":
     openings_file = open("openings_3ply.txt", "r")
     openings = openings_file.readlines()
     openings_file.close()
-    assert len(openings) == 880
+    assert len(openings) >= 10
 
     # Create folder 'debug'
     if not os.path.exists("debug"):

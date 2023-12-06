@@ -70,6 +70,9 @@ pub const MOVE_PASS: Move = [254, 254];
 pub type MovesArray = [Move; 256];
 pub const EMPTY_MOVES_ARRAY: MovesArray = [MOVE_NONE; 256];
 
+pub const INFINITY: i16 = 32000;
+pub const MIN_WIN_SCORE: i16 = 31000;
+
 /*
 42 43 44 45 46 47 48
 35 36 37 38 39 40 41

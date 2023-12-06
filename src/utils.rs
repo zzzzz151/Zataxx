@@ -172,3 +172,13 @@ pub fn incremental_sort(moves: &mut MovesArray, num_moves: u8, moves_scores: &mu
 
     moves[i]
 }
+
+pub fn clamp<T: Ord>(value: T, min: T, max: T) -> T {
+    if value < min {
+        min
+    } else if value > max {
+        max
+    } else {
+        value
+    }
+}

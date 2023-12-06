@@ -12,6 +12,7 @@ pub struct Board
     pub current_move: u16,
     pub states: Vec<Board>, 
     pub mov: Move,
+    pub zobrist_hash: u64
 }
 
 impl Board
@@ -25,6 +26,7 @@ impl Board
             current_move: 1,
             states: Vec::new(),
             mov: MOVE_NONE,
+            zobrist_hash: 0
         }
     }
 
@@ -40,6 +42,8 @@ impl Board
         let fen_rows: Vec<&str> = fen_split[0].split('/').map(str::trim).collect();
 
         board.color = if fen_split[1] == "r" || fen_split[1] == "x" {Color::Red} else {Color::Blue};
+        board.zobrist_hash ^= ZOBRIST_COLOR[board.color as usize];
+
         board.plies_since_single = fen_split[2].parse().unwrap();
         board.current_move = fen_split[3].parse().unwrap();
 
@@ -50,10 +54,10 @@ impl Board
             for my_char in fen_row.chars() {
                 let sq = rank * 7 + file;
                 if my_char == 'r' || my_char == 'x' {
-                    board.bitboards[Color::Red as usize] |= 1u64 << sq;
+                    board.place_piece(Color::Red, sq as Square);
                 }
                 else if my_char == 'b' || my_char == 'o' {
-                    board.bitboards[Color::Blue as usize] |= 1u64 << sq;
+                    board.place_piece(Color::Blue, sq as Square);
                 }
                 else if my_char == '-' {
                     board.blocked |= 1u64 << sq;
@@ -112,6 +116,18 @@ impl Board
         my_fen
     }
 
+    pub fn place_piece(&mut self, color: Color, sq: Square)
+    {
+        self.bitboards[color as usize] |= 1u64 << (sq as u8);
+        self.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
+    }
+
+    pub fn remove_piece(&mut self, color: Color, sq: Square)
+    {
+        self.bitboards[color as usize] ^= 1u64 << (sq as u8);
+        self.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
+    }
+
     pub fn print(&self) {
         let mut result = String::new();
 
@@ -130,6 +146,7 @@ impl Board
         println!("{}", result);
         println!("  A B C D E F G");
         println!("{}", self.fen());
+        println!("Zobrist hash: {}", self.zobrist_hash);
     }
 
     pub fn at(&self, sq: Square) -> char
@@ -161,6 +178,13 @@ impl Board
         self.bitboards[opp_color(self.color) as usize]
     }
 
+    pub fn swap_stm(&mut self)
+    { 
+        self.zobrist_hash ^= ZOBRIST_COLOR[self.color as usize];
+        self.color = opp_color(self.color);
+        self.zobrist_hash ^= ZOBRIST_COLOR[self.color as usize];
+    }
+
     pub fn make_move(&mut self, mov: Move)
     {
         assert!(mov != MOVE_NONE);
@@ -172,24 +196,28 @@ impl Board
         }
 
         if mov == MOVE_PASS {
-            self.color = opp_color(self.color);
+            self.swap_stm();
             return
         }
 
         // create piece on destination
-        self.bitboards[self.color as usize] |= 1u64 << mov[TO];
-
-        let adjacent_squares: u64 = ADJACENT_SQUARES_TABLE[mov[TO] as usize];
+        self.place_piece(self.color, mov[TO]);
 
         // if destination is not adjacent to source, remove piece at source
         if mov[FROM] != mov[TO] {
-            self.bitboards[self.color as usize] ^= 1u64 << mov[FROM];
+            self.remove_piece(self.color, mov[FROM]);
         }
 
         // Capture enemy pieces adjacent to destination
-        let enemies_captured = adjacent_squares & self.bitboards[opp_color(self.color) as usize];
-        self.bitboards[self.color as usize] |= enemies_captured;
-        self.bitboards[opp_color(self.color) as usize] ^= enemies_captured;
+        let adjacent_squares: u64 = ADJACENT_SQUARES_TABLE[mov[TO] as usize];
+        let opp_stm = opp_color(self.color);
+        let mut enemies_captured = adjacent_squares & self.bitboards[opp_stm as usize];
+        while enemies_captured > 0
+        {
+            let sq_captured: Square = pop_lsb(&mut enemies_captured) as Square;
+            self.remove_piece(opp_stm, sq_captured);
+            self.place_piece(self.color, sq_captured);
+        }
 
         if mov[FROM] == mov[TO] {
             self.plies_since_single = 0;
@@ -198,7 +226,7 @@ impl Board
             self.plies_since_single += 1;
         }
 
-        self.color = opp_color(self.color);
+        self.swap_stm();
     }
 
     pub fn undo_move(&mut self)
@@ -211,6 +239,7 @@ impl Board
         self.plies_since_single = last_state.plies_since_single;
         self.current_move = last_state.current_move;
         self.mov = last_state.mov;
+        self.zobrist_hash = last_state.zobrist_hash;
         self.states.pop();
     }
 
@@ -323,4 +352,5 @@ impl Board
 
         eval
     }
+
 }
