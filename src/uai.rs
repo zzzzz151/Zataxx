@@ -19,7 +19,7 @@ pub fn uai_loop(tt: &mut TT)
 
         match input_split[0] {
             "uai" => {
-                println!("id name Zataxx");
+                println!("id name Zataxx-test");
                 println!("id author zzzzz");
                 println!("uaiok");
             }

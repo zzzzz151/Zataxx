@@ -28,19 +28,15 @@ pub fn search(board: &mut Board, milliseconds: u32, tt: &mut TT) -> Move
     // ID (Iterative deepening)
     for iteration_depth in 1..=MAX_DEPTH 
     {
-        let best_move_before: Move = search_data.best_move_root;
         let iteration_score = negamax(&mut search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
-
-        if is_time_up(&mut search_data) {
-            search_data.best_move_root = best_move_before;
-            break;
-        }
 
         println!("info depth {} score {} time {} pv {}",
                  iteration_depth, 
                  iteration_score,
                  milliseconds_elapsed(search_data.start_time), 
                  move_to_str(search_data.best_move_root));
+                 
+        if is_time_up(&mut search_data) { break; }
     }
 
     assert!(search_data.best_move_root != MOVE_NONE);
