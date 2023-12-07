@@ -28,7 +28,7 @@ pub fn search(board: &mut Board, milliseconds: u32, tt: &mut TT) -> Move
     // ID (Iterative deepening)
     for iteration_depth in 1..=MAX_DEPTH 
     {
-        let iteration_score = negamax(&mut search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
+        let iteration_score = pvs(&mut search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
         println!("info depth {} score {} time {} pv {}",
                  iteration_depth, 
@@ -43,7 +43,7 @@ pub fn search(board: &mut Board, milliseconds: u32, tt: &mut TT) -> Move
     search_data.best_move_root
 }
 
-fn negamax(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
+fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
     if is_time_up(search_data) {
         return 0; 
@@ -107,7 +107,19 @@ fn negamax(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i1
     {
         let mov: Move = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
         search_data.board.make_move(mov);
-        let score = -negamax(search_data, depth - 1, ply + 1, -beta, -alpha);
+
+        // PVS (Principal variation search)
+        let score = if i == 0 {
+            -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
+        } else {
+            let null_window_score = -pvs(search_data, depth - 1, ply + 1, -alpha - 1, -alpha);
+            if null_window_score > alpha && null_window_score < beta {
+                -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
+            } else {
+                null_window_score
+            }
+        };
+
         search_data.board.undo_move();
 
         if is_time_up(search_data) {

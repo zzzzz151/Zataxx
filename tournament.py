@@ -247,7 +247,7 @@ def worker(process_id, exe1, exe2, shared, openings):
             l_blue = shared["l_blue"].value
 
             # Print new WDL
-            print("(Board {}, {} vs {})".format(process_id, eng1.name, eng2.name), end="")
+            print("({} vs {}, board {})".format(eng1.name, eng2.name, process_id), end="")
             print(" Total w-l-d {}-{}-{} ({})".format(w, l, d, games), end="")
             if game_result_type == GAME_RESULT_OUT_OF_TIME:
                 print(eng_to_play.name, "out of time", end="")
