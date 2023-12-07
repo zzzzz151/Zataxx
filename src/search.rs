@@ -79,6 +79,15 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         return tt_entry_probed.adjusted_score(ply);
     }
 
+    let pv_node: bool = beta - alpha > 1 || ply == 0;
+    if !pv_node && depth <= 5
+    {
+        let eval = search_data.board.eval();
+        if eval >= beta + depth * 100 {
+            return eval;
+        }
+    }
+
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
     let tt_move = if tt_hit {tt_entry_probed.best_move} else {MOVE_NONE};
