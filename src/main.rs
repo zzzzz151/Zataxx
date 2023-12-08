@@ -26,6 +26,7 @@ fn main() {
         milliseconds: 0,
         turn_milliseconds: 0,
         best_move_root: MOVE_NONE,
+        nodes: 0,
         tt: TT::new(DEFAULT_TT_SIZE_MB)
     };
 

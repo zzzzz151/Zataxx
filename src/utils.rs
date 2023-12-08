@@ -161,7 +161,7 @@ pub fn milliseconds_elapsed(start_time: Instant) -> u32 {
     now.duration_since(start_time).as_millis() as u32
 }
 
-pub fn incremental_sort(moves: &mut MovesArray, num_moves: u8, moves_scores: &mut [u8; 256], i: usize) -> Move
+pub fn incremental_sort(moves: &mut MovesArray, num_moves: u8, moves_scores: &mut [u8; 256], i: usize) -> (Move, u8)
 {
     for j in ((i+1) as usize)..(num_moves as usize) {
         if moves_scores[j] > moves_scores[i] {
@@ -170,7 +170,7 @@ pub fn incremental_sort(moves: &mut MovesArray, num_moves: u8, moves_scores: &mu
         }
     }
 
-    moves[i]
+    (moves[i], moves_scores[i])
 }
 
 pub fn clamp<T: Ord>(value: T, min: T, max: T) -> T {

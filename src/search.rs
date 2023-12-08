@@ -13,23 +13,27 @@ pub struct SearchData {
     pub milliseconds: u32,
     pub turn_milliseconds: u32,
     pub best_move_root: Move,
+    pub nodes: u64,
     pub tt: TT
 }
 
 pub fn search(search_data: &mut SearchData) -> Move
 {
-    search_data.best_move_root = MOVE_NONE;
     search_data.turn_milliseconds = search_data.milliseconds / 24;
+    search_data.best_move_root = MOVE_NONE;
+    search_data.nodes = 0;
 
     // ID (Iterative deepening)
     for iteration_depth in 1..=MAX_DEPTH 
     {
         let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
-        println!("info depth {} score {} time {} pv {}",
+        println!("info depth {} score {} time {} nodes {} nps {} pv {}",
                  iteration_depth, 
                  iteration_score,
                  milliseconds_elapsed(search_data.start_time), 
+                 search_data.nodes,
+                 search_data.nodes * 1000 / milliseconds_elapsed(search_data.start_time).max(1) as u64,
                  move_to_str(search_data.best_move_root));
                  
         if is_time_up(search_data) { break; }
@@ -41,9 +45,7 @@ pub fn search(search_data: &mut SearchData) -> Move
 
 fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
-    if is_time_up(search_data) {
-        return 0; 
-    }
+    if is_time_up(search_data) { return 0; }
 
     if ply > 0
     {
@@ -61,12 +63,14 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
     if depth <= 0 { return search_data.board.eval(); }
 
-    depth = clamp(depth, 0, MAX_DEPTH as i16);
+    if depth > MAX_DEPTH.into() { depth = MAX_DEPTH as i16; }
 
+    // Probe TT
     let tt_entry_index = search_data.board.zobrist_hash as usize % search_data.tt.entries.len();
     let tt_entry_probed: &TTEntry = &search_data.tt.entries[tt_entry_index];
     let tt_hit: bool = search_data.board.zobrist_hash == tt_entry_probed.zobrist_hash;
 
+    // TT cutoff
     if ply > 0 && tt_hit && tt_entry_probed.depth >= (depth as u8)
     && (tt_entry_probed.bound == Bound::Exact
     || (tt_entry_probed.bound == Bound::Lower && tt_entry_probed.score >= beta)
@@ -76,10 +80,12 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     }
 
     let pv_node: bool = (beta as i32 - alpha as i32) > 1 || ply == 0;
-    if !pv_node && depth <= 5
+    let eval = search_data.board.eval();
+
+    if !pv_node
     {
-        let eval = search_data.board.eval();
-        if eval >= beta + depth * 100 {
+        // RFP (Reverse futility pruning)
+        if depth <= 5 && eval >= beta + depth * 100 {
             return eval;
         }
     }
@@ -109,8 +115,21 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
     for i in 0..num_moves
     {
-        let mov: Move = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
+        let result = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
+        let mov: Move = result.0;
+        let move_score = result.1;
+
+        if ply > 0 && best_score > -MIN_WIN_SCORE && move_score <= 1
+        {
+            // FP (Futility pruning)
+            if depth <= 5 && alpha < MIN_WIN_SCORE
+            && eval + 140 + depth * 75 <= alpha {
+                break;
+            }
+        }
+        
         search_data.board.make_move(mov);
+        search_data.nodes += 1;
 
         // PVS (Principal variation search)
         let score = if i == 0 {

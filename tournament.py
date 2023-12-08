@@ -250,9 +250,9 @@ def worker(process_id, exe1, exe2, shared, openings):
             print("({} vs {}, board {})".format(eng1.name, eng2.name, process_id), end="")
             print(" Total w-l-d {}-{}-{} ({})".format(w, l, d, games), end="")
             if game_result_type == GAME_RESULT_OUT_OF_TIME:
-                print(eng_to_play.name, "out of time", end="")
+                print("", eng_to_play.name, "out of time", end="")
             elif game_result_type == GAME_RESULT_ILLEGAL_MOVE:
-                print(eng_to_play.name, "illegal move", end="")
+                print("", eng_to_play.name, "illegal move", end="")
             print()
 
             # Every RATING_INTERVAL games, print red WL, blue WL and current SPRT results
