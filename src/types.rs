@@ -41,6 +41,7 @@ pub enum File {
 #[repr(u8)]
 #[derive(Clone, Copy)]
 #[derive(PartialEq)]
+#[derive(Debug)]
 pub enum GameResult {
     None = 0,
     WinRed = 1,

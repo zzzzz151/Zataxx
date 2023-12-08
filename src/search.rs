@@ -1,5 +1,5 @@
 use std::time::Instant;
-use crate::tables::*;
+//use crate::tables::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
@@ -7,28 +7,24 @@ use crate::tt::*;
 
 pub const MAX_DEPTH: u8 = 100;
 
-pub struct SearchData<'a> {
-    board: &'a mut Board,
-    start_time: Instant,
-    turn_milliseconds: u32,
-    best_move_root: Move,
-    tt: &'a mut TT
+pub struct SearchData {
+    pub board: Board,
+    pub start_time: Instant,
+    pub milliseconds: u32,
+    pub turn_milliseconds: u32,
+    pub best_move_root: Move,
+    pub tt: TT
 }
 
-pub fn search(board: &mut Board, milliseconds: u32, tt: &mut TT) -> Move
+pub fn search(search_data: &mut SearchData) -> Move
 {
-    let mut search_data = SearchData {
-        board: board,
-        start_time: Instant::now(),
-        turn_milliseconds: milliseconds / 24,
-        best_move_root: MOVE_NONE,
-        tt: tt
-    };
+    search_data.best_move_root = MOVE_NONE;
+    search_data.turn_milliseconds = search_data.milliseconds / 24;
 
     // ID (Iterative deepening)
     for iteration_depth in 1..=MAX_DEPTH 
     {
-        let iteration_score = pvs(&mut search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
+        let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
         println!("info depth {} score {} time {} pv {}",
                  iteration_depth, 
@@ -36,7 +32,7 @@ pub fn search(board: &mut Board, milliseconds: u32, tt: &mut TT) -> Move
                  milliseconds_elapsed(search_data.start_time), 
                  move_to_str(search_data.best_move_root));
                  
-        if is_time_up(&mut search_data) { break; }
+        if is_time_up(search_data) { break; }
     }
 
     assert!(search_data.best_move_root != MOVE_NONE);
@@ -79,7 +75,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         return tt_entry_probed.adjusted_score(ply);
     }
 
-    let pv_node: bool = beta - alpha > 1 || ply == 0;
+    let pv_node: bool = (beta as i32 - alpha as i32) > 1 || ply == 0;
     if !pv_node && depth <= 5
     {
         let eval = search_data.board.eval();
@@ -101,9 +97,8 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
                 moves_scores[i as usize] = 255;
             }
             else {
-                let num_captured: u8 = (ADJACENT_SQUARES_TABLE[mov[TO] as usize] & search_data.board.them()).count_ones() as u8;
-                let is_single: bool = mov[TO] == mov[FROM];
-                moves_scores[i as usize] = num_captured + (is_single as u8);
+                moves_scores[i as usize] = (mov[TO] == mov[FROM]) as u8;
+                moves_scores[i as usize] += search_data.board.num_adjacent_enemies(mov[TO]);
             }
         }
     }

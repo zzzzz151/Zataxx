@@ -1,4 +1,5 @@
 use std::io;
+use std::time::Instant;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
@@ -6,13 +7,11 @@ use crate::perft::*;
 use crate::tt::*;
 use crate::search::*;
 
-pub fn uai_loop(tt: &mut TT)
+pub fn uai_loop(search_data: &mut SearchData)
 {
-    let mut input = String::new();
-    let mut board: Board = Board::new(START_FEN);
-
     loop
     {
+        let mut input = String::new();
         let _ = io::stdin().read_line(&mut input);
         input = input.trim().to_string();
         let input_split: Vec<&str> = input.split(' ').map(str::trim).collect();
@@ -24,60 +23,60 @@ pub fn uai_loop(tt: &mut TT)
                 println!("uaiok");
             }
             "setoption" => { 
-                setoption(input_split, tt); 
+                setoption(input_split, search_data);
             }
             "isready" => { 
                 println!("readyok"); 
             }
             "uainewgame" => { 
-                tt.reset();
+                uainewgame(search_data);
             }
             "position" => { 
-                position(input_split, &mut board);
+                position(input_split, search_data);
              }
             "go" => { 
-                go(input_split, &mut board, tt);
+                go(input_split, search_data);
              }
             "d" | "display" | "print" | "show" => { 
-                board.print(); 
+                search_data.board.print(); 
             }
-            "perfttests" => { 
-                run_perft_tests();
-             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                let nodes: u64 = perft(&mut board, depth);
+                let nodes: u64 = perft(&mut search_data.board, depth);
                 println!("perft depth {} nodes {}", depth, nodes);
             }
             "perftsplit" => { 
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                perft_split(&mut board, depth);
+                perft_split(&mut search_data.board, depth);
              }
              "gameresult" => {
-                println!("{}", board.get_game_result().to_string());
+                println!("{}", search_data.board.get_game_result().to_string());
              }
             _ => { }
         }
-
-        input.clear();
     }
 }
 
-pub fn setoption(tokens: Vec<&str>, tt: &mut TT)
+pub fn setoption(tokens: Vec<&str>, search_data: &mut SearchData)
 {
     let option_name = tokens[2];
     let option_value = tokens[4];
 
     if option_name == "hash" || option_name == "Hash" {
-        *tt = TT::new(option_value.parse::<usize>().unwrap());
+        search_data.tt = TT::new(option_value.parse::<usize>().unwrap());
     }
 }
 
-pub fn position(tokens: Vec<&str>, board: &mut Board)
+pub fn uainewgame(search_data: &mut SearchData)
+{
+    search_data.tt.reset();
+}
+
+pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
 {
     // apply fen
     if tokens[1] == "startpos" {
-       *board = Board::new(START_FEN);
+       search_data.board = Board::new(START_FEN);
     }
     else if tokens[1] == "fen"
     {
@@ -90,7 +89,7 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
             fen.push(' ');
         }
         fen.pop(); // remove last whitespace
-        *board = Board::new(&fen);
+        search_data.board = Board::new(&fen);
     }
 
     // apply moves if any
@@ -98,25 +97,26 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
     {
         if token == &"moves" {
             for j in (i+3)..tokens.len() {
-                board.make_move(str_to_move(tokens[j as usize]));
+                search_data.board.make_move(str_to_move(tokens[j as usize]));
             }
             break;
         }
     }
 }
 
-pub fn go(tokens: Vec<&str>, board: &mut Board, tt: &mut TT)
+pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
 {
-    let mut milliseconds: u32 = 4294967295;
+    search_data.start_time = Instant::now();
+    search_data.milliseconds = 4294967295;
     for i in 1..tokens.len() {
-        if (tokens[i] == "rtime" && board.color == Color::Red)
-        || (tokens[i] == "btime" && board.color == Color::Blue)
+        if (tokens[i] == "rtime" && search_data.board.color == Color::Red)
+        || (tokens[i] == "btime" && search_data.board.color == Color::Blue)
         {
-            milliseconds = tokens[i+1].parse().unwrap();
+            search_data.milliseconds = tokens[i+1].parse().unwrap();
         }
     }
 
-    let best_move: Move = search(board, milliseconds, tt);
+    let best_move: Move = search(search_data);
     assert!(best_move != MOVE_NONE);
     println!("bestmove {}", move_to_str(best_move));
 }

@@ -24,7 +24,7 @@ impl Board
             blocked: 0,
             plies_since_single: 0,
             current_move: 1,
-            states: Vec::new(),
+            states: Vec::with_capacity(256),
             mov: MOVE_NONE,
             zobrist_hash: 0
         }
@@ -196,6 +196,7 @@ impl Board
         }
 
         if mov == MOVE_PASS {
+            self.plies_since_single += 1;
             self.swap_stm();
             return
         }
@@ -277,11 +278,40 @@ impl Board
 
         if num_moves == 0
         {
+            if self.states.len() > 0 && self.states.last().unwrap().mov == MOVE_PASS {
+                return 0;
+            }
+
             moves[0] = MOVE_PASS;
-            num_moves = 1;
+            return 1;
         }
 
         return num_moves;
+    }
+
+    pub fn must_pass(&self) -> bool
+    {
+        let mut us = self.us();
+        let mut adjacent_target_squares: u64 = 0;
+
+        while us > 0
+        {
+            let from: Square = pop_lsb(&mut us) as Square;
+            adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
+            let leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]
+                                    & !self.occupancy()
+                                    & !self.blocked;
+            if leap_squares > 0 {
+                return false;
+            }
+        }
+
+        adjacent_target_squares &= !self.occupancy() & !self.blocked;
+        if adjacent_target_squares > 0 {
+            return false;
+        }
+
+        true
     }
  
     pub fn get_game_result(&mut self) -> GameResult
@@ -293,45 +323,41 @@ impl Board
         if self.bitboards[Color::Blue as usize] == 0 {
             return GameResult::WinRed;
         }
-
-        let max_squares_occupied: u8 = (49 - self.blocked.count_ones()) as u8;
-        let num_red_pieces: u8 = self.bitboards[Color::Red as usize].count_ones() as u8;
-        if num_red_pieces == max_squares_occupied {
-            return GameResult::WinRed;
-        }
-
-        let num_blue_pieces: u8 = self.bitboards[Color::Blue as usize].count_ones() as u8;
-        if num_blue_pieces == max_squares_occupied {
-            return GameResult::WinBlue;
-        }
-
-        if self.occupancy().count_ones() == max_squares_occupied.into() 
-        {
-            return if num_red_pieces > num_blue_pieces { GameResult::WinRed }
-                    else if num_blue_pieces > num_red_pieces { GameResult::WinBlue }
-                    else { GameResult::Draw }
-        }
-
-        if self.plies_since_single >= 100 {
-            return GameResult::Draw;
-        }
-
-        let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
-        self.moves(&mut moves);
-        if moves[0] != MOVE_PASS {
-            return GameResult::None
-        }
         
-        self.make_move(MOVE_PASS);
-        self.moves(&mut moves);
-        self.undo_move();
-        if moves[0] != MOVE_PASS {
-            return GameResult::None
+        if self.occupancy().count_ones() == 49 - self.blocked.count_ones()
+        {
+            let num_red_pieces: u8 = self.bitboards[Color::Red as usize].count_ones() as u8;
+            let num_blue_pieces: u8 = self.bitboards[Color::Blue as usize].count_ones() as u8;
+
+            return if num_red_pieces > num_blue_pieces 
+                       { GameResult::WinRed }
+                   else if num_blue_pieces > num_red_pieces 
+                       { GameResult::WinBlue }
+                   else 
+                       { GameResult::Draw }
         }
 
-        return if num_red_pieces > num_blue_pieces { GameResult::WinRed }
-               else if num_blue_pieces > num_red_pieces { GameResult::WinBlue }
-               else { GameResult::Draw }
+        if !self.must_pass() {
+            return if self.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
+        }
+
+        self.color = opp_color(self.color);
+        let opponent_must_pass: bool = self.must_pass();
+        self.color = opp_color(self.color);
+
+        if !opponent_must_pass {
+            return if self.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
+        }
+
+        let num_red_pieces: u8 = self.bitboards[Color::Red as usize].count_ones() as u8;
+        let num_blue_pieces: u8 = self.bitboards[Color::Blue as usize].count_ones() as u8;
+
+        return if num_red_pieces > num_blue_pieces 
+                   { GameResult::WinRed }
+               else if num_blue_pieces > num_red_pieces 
+                   { GameResult::WinBlue }
+               else 
+                   { GameResult::Draw }
     }
 
     pub fn eval(&mut self) -> i16
@@ -352,5 +378,10 @@ impl Board
 
         eval
     }
+
+    pub fn num_adjacent_enemies(&self, sq: Square) -> u8 {
+        (ADJACENT_SQUARES_TABLE[sq as usize] & self.them()).count_ones() as u8
+    }
+
 
 }
