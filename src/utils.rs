@@ -32,6 +32,7 @@ pub fn square_file(sq: Square) -> File {
     unsafe { std::mem::transmute((sq % 7) as u8) }
 }
 
+
 pub fn opp_color(color: Color) -> Color
 {
     match color {

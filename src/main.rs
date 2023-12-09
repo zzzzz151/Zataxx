@@ -4,6 +4,7 @@ mod tables;
 mod board;
 mod perft;
 mod tt;
+mod datagen;
 mod uai;
 mod search;
 mod tests;
@@ -22,8 +23,9 @@ fn main() {
 
     let mut search_data = SearchData {
         board: Board::new(START_FEN),
+        max_depth: MAX_DEPTH,
         start_time: Instant::now(),
-        milliseconds: 0,
+        milliseconds: 4294967295,
         turn_milliseconds: 0,
         best_move_root: MOVE_NONE,
         nodes: 0,

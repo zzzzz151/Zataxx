@@ -6,6 +6,7 @@ use crate::board::*;
 use crate::perft::*;
 use crate::tt::*;
 use crate::search::*;
+use crate::datagen::*;
 
 pub fn uai_loop(search_data: &mut SearchData)
 {
@@ -48,10 +49,14 @@ pub fn uai_loop(search_data: &mut SearchData)
             "perftsplit" => { 
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
                 perft_split(&mut search_data.board, depth);
-             }
-             "gameresult" => {
+            }
+            "gameresult" => {
                 println!("{}", search_data.board.get_game_result().to_string());
-             }
+            }
+            "genopenings" => {
+                generate_openings("openings.txt", 4, 3000);
+            }
+             
             _ => { }
         }
     }
@@ -116,7 +121,7 @@ pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
         }
     }
 
-    let best_move: Move = search(search_data);
+    let best_move: Move = search(search_data, true).0;
     assert!(best_move != MOVE_NONE);
     println!("bestmove {}", move_to_str(best_move));
 }

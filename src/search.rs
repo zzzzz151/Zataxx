@@ -9,6 +9,7 @@ pub const MAX_DEPTH: u8 = 100;
 
 pub struct SearchData {
     pub board: Board,
+    pub max_depth: u8,
     pub start_time: Instant,
     pub milliseconds: u32,
     pub turn_milliseconds: u32,
@@ -17,30 +18,36 @@ pub struct SearchData {
     pub tt: TT
 }
 
-pub fn search(search_data: &mut SearchData) -> Move
+pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 {
     search_data.turn_milliseconds = search_data.milliseconds / 24;
     search_data.best_move_root = MOVE_NONE;
     search_data.nodes = 0;
 
+    let mut score: i16 = 0;
+
     // ID (Iterative deepening)
-    for iteration_depth in 1..=MAX_DEPTH 
+    for iteration_depth in 1..=search_data.max_depth 
     {
         let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
-        println!("info depth {} score {} time {} nodes {} nps {} pv {}",
-                 iteration_depth, 
-                 iteration_score,
-                 milliseconds_elapsed(search_data.start_time), 
-                 search_data.nodes,
-                 search_data.nodes * 1000 / milliseconds_elapsed(search_data.start_time).max(1) as u64,
-                 move_to_str(search_data.best_move_root));
+        if print_info {
+            println!("info depth {} score {} time {} nodes {} nps {} pv {}",
+                    iteration_depth, 
+                    iteration_score,
+                    milliseconds_elapsed(search_data.start_time), 
+                    search_data.nodes,
+                    search_data.nodes * 1000 / milliseconds_elapsed(search_data.start_time).max(1) as u64,
+                    move_to_str(search_data.best_move_root));
+        }
                  
         if is_time_up(search_data) { break; }
+
+        score = iteration_score;
     }
 
     assert!(search_data.best_move_root != MOVE_NONE);
-    search_data.best_move_root
+    (search_data.best_move_root, score)
 }
 
 fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
@@ -63,7 +70,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
     if depth <= 0 { return search_data.board.eval(); }
 
-    if depth > MAX_DEPTH.into() { depth = MAX_DEPTH as i16; }
+    if depth > search_data.max_depth.into() { depth = search_data.max_depth as i16; }
 
     // Probe TT
     let tt_entry_index = search_data.board.zobrist_hash as usize % search_data.tt.entries.len();

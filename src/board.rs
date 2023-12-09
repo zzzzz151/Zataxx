@@ -33,8 +33,8 @@ impl Board
     pub fn new(fen: &str) -> Self
     {
         // Fen: pieces stm halfmove fullmove 
-        // r5b/7/7/7/7/7/b5r x 0 1
-        // r5b/7/2-1-2/7/2-1-2/7/b5r x 0 1
+        // r5b/7/7/7/7/7/b5r r 0 1
+        // r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1
 
         let mut board = Board::default();
         let fen = fen.trim().to_string();
