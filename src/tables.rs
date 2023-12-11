@@ -9,6 +9,18 @@ pub const PST: [i16; 49] = [
     120, 120, 120, 120, 120, 120, 120,
 ];
 
+pub fn get_lmr_table() -> [[u8; 256]; 256]
+{
+    let mut table: [[u8; 256]; 256] = [[0; 256]; 256];
+    for depth in 1..256 {
+        for move_index in 1..256 {
+            table[depth as usize][move_index as usize] 
+                = (0.6 + (depth as f64).ln() * (move_index as f64).ln() * 0.3).round() as u8;
+        }
+    }
+    table
+}
+
 // [square]
 pub const ADJACENT_SQUARES_TABLE: [u64; 49] = [
     386, 901, 1802, 3604, 7208, 14416, 12320,

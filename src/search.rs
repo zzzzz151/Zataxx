@@ -15,7 +15,8 @@ pub struct SearchData {
     pub turn_milliseconds: u32,
     pub best_move_root: Move,
     pub nodes: u64,
-    pub tt: TT
+    pub tt: TT,
+    pub lmr_table: [[u8; 256]; 256]
 }
 
 pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
@@ -99,6 +100,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
+    assert!(num_moves > 0);
     let tt_move = if tt_hit {tt_entry_probed.best_move} else {MOVE_NONE};
 
     // Score moves
@@ -147,8 +149,19 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         let score = if i == 0 {
             -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
         } else {
-            let null_window_score = -pvs(search_data, depth - 1, ply + 1, -alpha - 1, -alpha);
-            if null_window_score > alpha && null_window_score < beta {
+            // LMR (Late move reductions)
+            /*
+            let lmr: i16 = if depth >= 3 && move_score == 0 {
+                let mut value: i16 = search_data.lmr_table[depth as usize][i as usize] as i16;
+                value -= pv_node as i16; // reduce pv nodes less
+                clamp(value, 0, depth - 2) // dont extend and dont reduce into eval
+            } else {
+                0
+            };
+            */
+
+            let null_window_score = -pvs(search_data, depth - 1 /*- lmr*/, ply + 1, -alpha - 1, -alpha);
+            if null_window_score > alpha && (null_window_score < beta /*|| lmr > 0*/) {
                 -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
             } else {
                 null_window_score

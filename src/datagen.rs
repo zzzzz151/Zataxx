@@ -4,6 +4,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use crate::types::*;
 //use crate::utils::*;
+use crate::tables::*;
 use crate::board::*;
 use crate::tt::*;
 use crate::search::*;
@@ -27,7 +28,8 @@ pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
         turn_milliseconds: 0,
         best_move_root: MOVE_NONE,
         nodes: 0,
-        tt: TT::new(DEFAULT_TT_SIZE_MB)
+        tt: TT::new(DEFAULT_TT_SIZE_MB),
+        lmr_table: get_lmr_table()
     };
 
     while zobrist_hashes_written.len() < num_openings.into()    

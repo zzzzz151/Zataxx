@@ -12,6 +12,7 @@ mod tests;
 use std::time::Instant;
 use types::*;
 //use utils::*;
+use tables::*;
 use board::*;
 //use perft::*;
 use tt::*;
@@ -29,7 +30,8 @@ fn main() {
         turn_milliseconds: 0,
         best_move_root: MOVE_NONE,
         nodes: 0,
-        tt: TT::new(DEFAULT_TT_SIZE_MB)
+        tt: TT::new(DEFAULT_TT_SIZE_MB),
+        lmr_table: get_lmr_table()
     };
 
     uai_loop(&mut search_data);
