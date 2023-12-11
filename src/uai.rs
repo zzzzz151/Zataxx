@@ -19,7 +19,7 @@ pub fn uai_loop(search_data: &mut SearchData)
 
         match input_split[0] {
             "uai" => {
-                println!("id name Zataxx-test");
+                println!("id name Zataxx");
                 println!("id author zzzzz");
                 println!("uaiok");
             }

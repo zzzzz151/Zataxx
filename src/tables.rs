@@ -1,12 +1,14 @@
-// [square]
+pub const A: i16 = 60;  // x8
+pub const B: i16 = 90;  // x16
+pub const C: i16 = 120; // x24
 pub const PST: [i16; 49] = [
-    120, 120, 120, 120, 120, 120, 120,
-    120, 100, 100, 100, 100, 100, 120,
-    120, 100,  80,  80,  80, 100, 120,
-    120, 100,  80,  60,  80, 100, 120,
-    120, 100,  80,  80,  80, 100, 120,
-    120, 100, 100, 100, 100, 100, 120,
-    120, 120, 120, 120, 120, 120, 120,
+    C, C, C, C, C, C, C,
+    C, B, B, B, B, B, C,
+    C, B, A, A, A, B, C,
+    C, B, A, 30, A, B, C,
+    C, B, A, A, A, B, C,
+    C, B, B, B, B, B, C,
+    C, C, C, C, C, C, C,
 ];
 
 pub fn get_lmr_table() -> [[u8; 256]; 256]
@@ -15,7 +17,7 @@ pub fn get_lmr_table() -> [[u8; 256]; 256]
     for depth in 1..256 {
         for move_index in 1..256 {
             table[depth as usize][move_index as usize] 
-                = (0.6 + (depth as f64).ln() * (move_index as f64).ln() * 0.3).round() as u8;
+                = (0.8 + (depth as f64).ln() * (move_index as f64).ln() * 0.4).round() as u8;
         }
     }
     table

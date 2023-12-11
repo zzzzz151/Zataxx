@@ -38,7 +38,11 @@ def sprt(
         elo1: float,
         cutechess: bool = False
         ) -> float:
-    if wins == 0 or losses == 0 or draws == 0:
+
+    if draws == 0:
+        draws = 1
+
+    if wins == 0 or losses == 0:
         return 0.0
 
     total = wins + draws + losses
