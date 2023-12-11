@@ -2,13 +2,13 @@ pub const A: i16 = 60;  // x8
 pub const B: i16 = 90;  // x16
 pub const C: i16 = 120; // x24
 pub const PST: [i16; 49] = [
-    C, C, C, C, C, C, C,
-    C, B, B, B, B, B, C,
-    C, B, A, A, A, B, C,
+    C, C, C,  C, C, C, C,
+    C, B, B,  B, B, B, C,
+    C, B, A,  A, A, B, C,
     C, B, A, 30, A, B, C,
-    C, B, A, A, A, B, C,
-    C, B, B, B, B, B, C,
-    C, C, C, C, C, C, C,
+    C, B, A,  A, A, B, C,
+    C, B, B,  B, B, B, C,
+    C, C, C,  C, C, C, C,
 ];
 
 pub fn get_lmr_table() -> [[u8; 256]; 256]

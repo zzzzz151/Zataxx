@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+
+use std::mem;
 use crate::types::*;
 //use crate::utils::*;
 
@@ -16,9 +19,8 @@ pub enum Bound {
 pub struct TTEntry {
     pub zobrist_hash: u64,
     pub depth: u8,
-    pub best_move: Move,
     pub score: i16,
-    pub bound: Bound,
+    move_and_bound: u16, // first 12 bits move, last 2 bits bound
 }
 
 impl TTEntry
@@ -32,6 +34,22 @@ impl TTEntry
             return self.score + ply;
         }
         self.score
+    }
+
+    pub fn get_move(&self) -> Move {
+        [((self.move_and_bound & 0b1111_1100_0000_0000) >> 10) as Square, 
+         ((self.move_and_bound & 0b0000_0011_1111_0000) >> 4) as Square]
+    }
+
+    pub fn get_bound(&self) -> Bound {
+        let bound: Bound = unsafe { mem::transmute((self.move_and_bound & 0b11) as u8) };
+        bound 
+    }
+
+    pub fn store_move_and_bound(&mut self, mov: Move, bound: Bound) {
+        let from: u16 = mov[FROM] as u16;
+        let to: u16 = mov[TO] as u16;
+        self.move_and_bound = (from << 10) | (to << 4) | (bound as u16);
     }
 }
 
@@ -53,9 +71,8 @@ impl TT
             entries: vec![TTEntry {
                 zobrist_hash: 0,
                 depth: 0,
-                best_move: MOVE_NONE,
                 score: 0,
-                bound: Bound::None,
+                move_and_bound: 0,
             }; num_entries]
         }
     }   
@@ -65,9 +82,8 @@ impl TT
         self.entries = vec![TTEntry {
                                 zobrist_hash: 0,
                                 depth: 0,
-                                best_move: MOVE_NONE,
                                 score: 0,
-                                bound: Bound::None,
+                                move_and_bound: 0,
                             }; self.entries.len()];
         println!("TT reset");
     }

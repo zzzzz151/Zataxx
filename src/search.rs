@@ -77,12 +77,13 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     let tt_entry_index = search_data.board.zobrist_hash as usize % search_data.tt.entries.len();
     let tt_entry_probed: &TTEntry = &search_data.tt.entries[tt_entry_index];
     let tt_hit: bool = search_data.board.zobrist_hash == tt_entry_probed.zobrist_hash;
+    let bound: Bound = tt_entry_probed.get_bound();
 
     // TT cutoff
     if ply > 0 && tt_hit && tt_entry_probed.depth >= (depth as u8)
-    && (tt_entry_probed.bound == Bound::Exact
-    || (tt_entry_probed.bound == Bound::Lower && tt_entry_probed.score >= beta)
-    || (tt_entry_probed.bound == Bound::Upper && tt_entry_probed.score <= alpha))
+    && (bound == Bound::Exact
+    || (bound == Bound::Lower && tt_entry_probed.score >= beta)
+    || (bound == Bound::Upper && tt_entry_probed.score <= alpha))
     {
         return tt_entry_probed.adjusted_score(ply);
     }
@@ -101,7 +102,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
     assert!(num_moves > 0);
-    let tt_move = if tt_hit {tt_entry_probed.best_move} else {MOVE_NONE};
+    let tt_move = if tt_hit {tt_entry_probed.get_move()} else {MOVE_NONE};
 
     // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];
@@ -194,15 +195,14 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     let tt_entry: &mut TTEntry = &mut search_data.tt.entries[tt_entry_index];
     tt_entry.zobrist_hash = search_data.board.zobrist_hash;
     tt_entry.depth = depth as u8;
-    tt_entry.best_move = best_move;
 
     tt_entry.score = if best_score >= MIN_WIN_SCORE { best_score + ply }
                      else if best_score <= -MIN_WIN_SCORE { best_score - ply }
                      else { best_score };
 
-    tt_entry.bound = if best_score <= original_alpha { Bound::Upper }
-                     else if best_score >= beta { Bound::Lower }
-                     else { Bound::Exact };
+    tt_entry.store_move_and_bound(best_move, if best_score <= original_alpha { Bound::Upper }
+                                             else if best_score >= beta { Bound::Lower }
+                                             else { Bound::Exact });
 
     best_score
 }
