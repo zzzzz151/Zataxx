@@ -85,7 +85,7 @@ impl TT
                                 score: 0,
                                 move_and_bound: 0,
                             }; self.entries.len()];
-        println!("TT reset");
+        //println!("TT reset");
     }
 
 }

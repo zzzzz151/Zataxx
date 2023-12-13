@@ -85,10 +85,12 @@ pub fn datagen()
     })
     .collect();
 
+    let file_path = format!("data/{}.txt", file_name);
+
     // Open the file in write mode, creating it if it doesn't exist
-    let mut file = match File::create("data/".to_owned() + &file_name + ".txt") {
+    let mut file = match File::create(file_path.clone()) {
         Ok(file) => file,
-        Err(e) => panic!("Error creating file {}: {}", file_name, e),
+        Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
     let mut search_data = SearchData {
@@ -136,7 +138,6 @@ pub fn datagen()
             if plies_made == plies { break; }
         }
 
-        //search_data.board = Board::new(&search_data.board.fen());
         search_data.tt.reset();
         let mut lines: Vec<String> = Vec::with_capacity(128);
         let mut game_result = GameResult::None;
@@ -144,28 +145,28 @@ pub fn datagen()
         // Play out game
         loop {
             search_data.start_time = Instant::now();
-            let (mov, mut score) = search(&mut search_data, true);
+            let (mov, mut score) = search(&mut search_data, false);
             assert!(mov != MOVE_NONE);
 
             if score >= 2000 {
-                game_result = if search_data.board.state.color == Color::Red {GameResult::WinRed} 
-                              else {GameResult::WinBlue};
+                game_result = if search_data.board.state.color == Color::Red 
+                                {GameResult::WinRed} 
+                              else 
+                                {GameResult::WinBlue};
                 break;
             }
             else if score <= -2000 {
-                game_result = if search_data.board.state.color == Color::Red {GameResult::WinBlue} 
-                              else {GameResult::WinRed};
+                game_result = if search_data.board.state.color == Color::Red 
+                                {GameResult::WinBlue} 
+                              else 
+                                {GameResult::WinRed};
                 break;
             }
             
             if search_data.board.state.color == Color::Blue {
                 score = -score;
             }
-            let mut line = String::new();
-            line.push_str(&search_data.board.fen());
-            line.push_str(" | ");
-            line.push_str(&score.to_string());
-            lines.push(line);
+            lines.push(format!("{} | {}", search_data.board.fen(), score));
 
             search_data.board.make_move(mov);
             game_result = search_data.board.get_game_result();
@@ -176,17 +177,19 @@ pub fn datagen()
 
         assert!(game_result != GameResult::None);
 
+        if search_data.board.state.plies_since_single >= 100 {
+            continue;
+        }
+
         // Write data from this game to file
         for i in 0..lines.len() {
-            lines[i as usize].push_str(" | ");
-            lines[i as usize].push_str(&game_result.to_string());
-            lines[i as usize].push_str("\n");
-            let _ = file.write_all(lines[i as usize].as_bytes());
+            let line = format!("{} | {}\n", lines[i], game_result.to_string());
+            let _ = file.write_all(line.as_bytes());
         }
 
         positions_written += lines.len() as u32;
         println!("{} | Positions: {} | Positions/sec: {}",
-                 file_name, 
+                 file_path, 
                  positions_written, 
                  positions_written * 1000 / milliseconds_elapsed(datagen_start_time));
     }

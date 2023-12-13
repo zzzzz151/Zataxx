@@ -10,6 +10,7 @@ mod search;
 mod tests;
 
 use std::time::Instant;
+use std::env;
 use types::*;
 //use utils::*;
 use tables::*;
@@ -18,9 +19,16 @@ use board::*;
 use tt::*;
 use search::*;
 use uai::*;
+use datagen::*;
 
 fn main() {
     println!("Zataxx by zzzzz");
+
+    let args: Vec<String> = env::args().collect();
+    if args.len() > 1 && args[1] == "datagen" {
+        datagen();
+        return;
+    }
 
     let mut search_data = SearchData {
         board: Board::new(START_FEN),
