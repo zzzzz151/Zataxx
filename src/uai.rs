@@ -18,6 +18,9 @@ pub fn uai_loop(search_data: &mut SearchData)
         let input_split: Vec<&str> = input.split(' ').map(str::trim).collect();
 
         match input_split[0] {
+            "quit" => {
+                break;
+            }
             "uai" => {
                 println!("id name Zataxx");
                 println!("id author zzzzz");
@@ -56,7 +59,9 @@ pub fn uai_loop(search_data: &mut SearchData)
             "genopenings" => {
                 generate_openings("openings.txt", 4, 3000);
             }
-             
+            "datagen" => {
+                datagen();
+            }
             _ => { }
         }
     }
@@ -114,8 +119,8 @@ pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
     search_data.start_time = Instant::now();
     search_data.milliseconds = 4294967295;
     for i in 1..tokens.len() {
-        if (tokens[i] == "rtime" && search_data.board.color == Color::Red)
-        || (tokens[i] == "btime" && search_data.board.color == Color::Blue)
+        if (tokens[i] == "rtime" && search_data.board.state.color == Color::Red)
+        || (tokens[i] == "btime" && search_data.board.state.color == Color::Blue)
         {
             search_data.milliseconds = tokens[i+1].parse().unwrap();
         }

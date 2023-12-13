@@ -24,10 +24,13 @@ fn main() {
 
     let mut search_data = SearchData {
         board: Board::new(START_FEN),
-        max_depth: MAX_DEPTH,
+        max_depth: 100,
         start_time: Instant::now(),
         milliseconds: 4294967295,
         turn_milliseconds: 0,
+        time_is_up: false,
+        soft_nodes: 4294967295,
+        hard_nodes: 4294967295,
         best_move_root: MOVE_NONE,
         nodes: 0,
         tt: TT::new(DEFAULT_TT_SIZE_MB),

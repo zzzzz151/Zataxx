@@ -53,10 +53,10 @@ pub enum GameResult {
 impl ToString for GameResult {
     fn to_string(&self) -> String {
         match self {
-            GameResult::None => String::from("No result"),
-            GameResult::WinRed => String::from("Red wins"),
-            GameResult::WinBlue => String::from("Blue wins"),
-            GameResult::Draw => String::from("Draw"),
+            GameResult::None => String::from("*"),
+            GameResult::WinRed => String::from("1.0"),
+            GameResult::WinBlue => String::from("0.0"),
+            GameResult::Draw => String::from("0.5"),
         }
     }
 }

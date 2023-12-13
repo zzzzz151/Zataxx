@@ -14,9 +14,12 @@ temp
 temp/
 debug
 debug/
+data
+data/
 
 games.txt
 games.pgn
 debug.txt
 notes.txt
 stderr.txt
+flamegraph.svg

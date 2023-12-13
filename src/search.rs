@@ -5,14 +5,15 @@ use crate::utils::*;
 use crate::board::*;
 use crate::tt::*;
 
-pub const MAX_DEPTH: u8 = 100;
-
 pub struct SearchData {
     pub board: Board,
     pub max_depth: u8,
     pub start_time: Instant,
     pub milliseconds: u32,
     pub turn_milliseconds: u32,
+    pub time_is_up: bool,
+    pub soft_nodes: u32,
+    pub hard_nodes: u32,
     pub best_move_root: Move,
     pub nodes: u64,
     pub tt: TT,
@@ -22,6 +23,7 @@ pub struct SearchData {
 pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 {
     search_data.turn_milliseconds = search_data.milliseconds / 24;
+    search_data.time_is_up = false;
     search_data.best_move_root = MOVE_NONE;
     search_data.nodes = 0;
 
@@ -32,6 +34,10 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     {
         let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
+        if is_time_up(search_data) { 
+            break; 
+        }
+
         if print_info {
             println!("info depth {} score {} time {} nodes {} nps {} pv {}",
                     iteration_depth, 
@@ -41,10 +47,12 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
                     search_data.nodes * 1000 / milliseconds_elapsed(search_data.start_time).max(1) as u64,
                     move_to_str(search_data.best_move_root));
         }
-                 
-        if is_time_up(search_data) { break; }
-
+        
         score = iteration_score;
+
+        if search_data.nodes >= search_data.soft_nodes.into() {
+            break;
+        }
     }
 
     assert!(search_data.best_move_root != MOVE_NONE);
@@ -62,10 +70,10 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
             return 0;
         }
         else if game_result == GameResult::WinRed {
-            return if search_data.board.color == Color::Red {INFINITY - ply} else {-INFINITY + ply};
+            return if search_data.board.state.color == Color::Red {INFINITY - ply} else {-INFINITY + ply};
         }
         else if game_result == GameResult::WinBlue {
-            return if search_data.board.color == Color::Blue {INFINITY - ply} else {-INFINITY + ply};
+            return if search_data.board.state.color == Color::Blue {INFINITY - ply} else {-INFINITY + ply};
         }
     }
 
@@ -74,9 +82,9 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     if depth > search_data.max_depth.into() { depth = search_data.max_depth as i16; }
 
     // Probe TT
-    let tt_entry_index = search_data.board.zobrist_hash as usize % search_data.tt.entries.len();
+    let tt_entry_index = search_data.board.state.zobrist_hash as usize % search_data.tt.entries.len();
     let tt_entry_probed: &TTEntry = &search_data.tt.entries[tt_entry_index];
-    let tt_hit: bool = search_data.board.zobrist_hash == tt_entry_probed.zobrist_hash;
+    let tt_hit: bool = search_data.board.state.zobrist_hash == tt_entry_probed.zobrist_hash;
     let bound: Bound = tt_entry_probed.get_bound();
 
     // TT cutoff
@@ -125,9 +133,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
     for i in 0..num_moves
     {
-        let result = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
-        let mov: Move = result.0;
-        let move_score = result.1;
+        let (mov, move_score) = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
 
         if ply > 0 && best_score > -MIN_WIN_SCORE && move_score <= 1
         {
@@ -193,7 +199,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     }
 
     let tt_entry: &mut TTEntry = &mut search_data.tt.entries[tt_entry_index];
-    tt_entry.zobrist_hash = search_data.board.zobrist_hash;
+    tt_entry.zobrist_hash = search_data.board.state.zobrist_hash;
     tt_entry.depth = depth as u8;
 
     tt_entry.score = if best_score >= MIN_WIN_SCORE { best_score + ply }
@@ -208,5 +214,12 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 }
 
 fn is_time_up(search_data: &mut SearchData) -> bool {
-    milliseconds_elapsed(search_data.start_time) >= search_data.turn_milliseconds
+    if search_data.time_is_up || search_data.nodes >= search_data.hard_nodes.into() { 
+        return true; 
+    }
+    if (search_data.nodes % 1024) != 0 {
+        return false;
+    }
+    search_data.time_is_up = milliseconds_elapsed(search_data.start_time) >= search_data.turn_milliseconds;
+    search_data.time_is_up
 }

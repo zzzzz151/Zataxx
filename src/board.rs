@@ -2,31 +2,45 @@ use crate::types::*;
 use crate::utils::*;
 use crate::tables::*;
 
-#[derive(Clone)]
-pub struct Board 
+#[derive(Copy, Clone)]
+pub struct BoardState
 {
     pub color: Color,
     pub bitboards: [u64; 2], // [color]
     pub blocked: u64,
     pub plies_since_single: u16,
     pub current_move: u16,
-    pub states: Vec<Board>, 
     pub mov: Move,
     pub zobrist_hash: u64
+}
+
+impl BoardState 
+{
+    pub fn default() -> Self {
+        Self {
+            color: Color::None,
+            bitboards: [0, 0],
+            blocked: 0,
+            plies_since_single: 0,
+            current_move: 1,
+            mov: MOVE_NONE,
+            zobrist_hash: 0
+        }
+    }
+}
+
+pub struct Board 
+{
+    pub state: BoardState,
+    pub states: Vec<BoardState>
 }
 
 impl Board
 {
     pub fn default() -> Self {
         Self {
-            color: Color::Red,
-            bitboards: [0, 0],
-            blocked: 0,
-            plies_since_single: 0,
-            current_move: 1,
-            states: Vec::with_capacity(256),
-            mov: MOVE_NONE,
-            zobrist_hash: 0
+            state: BoardState::default(),
+            states: Vec::with_capacity(256)
         }
     }
 
@@ -36,16 +50,16 @@ impl Board
         // r5b/7/7/7/7/7/b5r r 0 1
         // r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1
 
-        let mut board = Board::default();
+        let mut board: Board = Board::default();
         let fen = fen.trim().to_string();
         let fen_split: Vec<&str> = fen.split(' ').map(str::trim).collect();
         let fen_rows: Vec<&str> = fen_split[0].split('/').map(str::trim).collect();
 
-        board.color = if fen_split[1] == "r" || fen_split[1] == "x" {Color::Red} else {Color::Blue};
-        board.zobrist_hash ^= ZOBRIST_COLOR[board.color as usize];
+        board.state.color = if fen_split[1] == "r" || fen_split[1] == "x" {Color::Red} else {Color::Blue};
+        board.state.zobrist_hash ^= ZOBRIST_COLOR[board.state.color as usize];
 
-        board.plies_since_single = fen_split[2].parse().unwrap();
-        board.current_move = fen_split[3].parse().unwrap();
+        board.state.plies_since_single = fen_split[2].parse().unwrap();
+        board.state.current_move = fen_split[3].parse().unwrap();
 
         // Parse fen rows/pieces
         let mut rank: i16 = 6;
@@ -60,7 +74,7 @@ impl Board
                     board.place_piece(Color::Blue, sq as Square);
                 }
                 else if my_char == '-' {
-                    board.blocked |= 1u64 << sq;
+                    board.state.blocked |= 1u64 << sq;
                 }
                 else
                 {
@@ -105,27 +119,27 @@ impl Board
         my_fen.pop(); // remove last '/'
 
         my_fen.push(' ');
-        my_fen.push(if self.color == Color::Red {'r'} else {'b'});
+        my_fen.push(if self.state.color == Color::Red {'r'} else {'b'});
 
         my_fen.push(' ');
-        my_fen += &self.plies_since_single.to_string();
+        my_fen += &self.state.plies_since_single.to_string();
 
         my_fen.push(' ');
-        my_fen += &self.current_move.to_string();
+        my_fen += &self.state.current_move.to_string();
 
         my_fen
     }
 
     pub fn place_piece(&mut self, color: Color, sq: Square)
     {
-        self.bitboards[color as usize] |= 1u64 << (sq as u8);
-        self.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
+        self.state.bitboards[color as usize] |= 1u64 << (sq as u8);
+        self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
     }
 
     pub fn remove_piece(&mut self, color: Color, sq: Square)
     {
-        self.bitboards[color as usize] ^= 1u64 << (sq as u8);
-        self.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
+        self.state.bitboards[color as usize] ^= 1u64 << (sq as u8);
+        self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
     }
 
     pub fn print(&self) {
@@ -146,7 +160,7 @@ impl Board
         println!("{}", result);
         println!("  A B C D E F G");
         println!("{}", self.fen());
-        println!("Zobrist hash: {}", self.zobrist_hash);
+        println!("Zobrist hash: {}", self.state.zobrist_hash);
     }
 
     pub fn at(&self, sq: Square) -> char
@@ -155,10 +169,10 @@ impl Board
         if self.is_square_blocked(sq) {
             '-'
         }
-        else if (self.bitboards[Color::Red as usize] & sq_bb) > 0 {
+        else if (self.state.bitboards[Color::Red as usize] & sq_bb) > 0 {
             'r'
         }
-        else if (self.bitboards[Color::Blue as usize] & sq_bb) > 0 {
+        else if (self.state.bitboards[Color::Blue as usize] & sq_bb) > 0 {
             'b'
         }
         else {
@@ -167,64 +181,68 @@ impl Board
     }
 
     pub fn is_square_blocked(&self, sq: Square) -> bool {
-        (self.blocked & (1u64 << sq)) > 0
+        (self.state.blocked & (1u64 << sq)) > 0
     }
 
     pub fn us(&self) -> u64 {
-        self.bitboards[self.color as usize]
+        self.state.bitboards[self.state.color as usize]
     }
 
     pub fn them(&self) -> u64 {
-        self.bitboards[opp_color(self.color) as usize]
+        self.state.bitboards[opp_color(self.state.color) as usize]
+    }
+
+    pub fn occupancy(&self) -> u64 {
+        self.state.bitboards[Color::Red as usize] | self.state.bitboards[Color::Blue as usize]
     }
 
     pub fn swap_stm(&mut self)
     { 
-        self.zobrist_hash ^= ZOBRIST_COLOR[self.color as usize];
-        self.color = opp_color(self.color);
-        self.zobrist_hash ^= ZOBRIST_COLOR[self.color as usize];
+        self.state.zobrist_hash ^= ZOBRIST_COLOR[self.state.color as usize];
+        self.state.color = opp_color(self.state.color);
+        self.state.zobrist_hash ^= ZOBRIST_COLOR[self.state.color as usize];
     }
 
     pub fn make_move(&mut self, mov: Move)
     {
         assert!(mov != MOVE_NONE);
 
-        self.states.push(self.clone());
+        self.states.push(self.state);
 
-        if self.color == Color::Blue {
-            self.current_move += 1;
+        if self.state.color == Color::Blue {
+            self.state.current_move += 1;
         }
 
         if mov == MOVE_PASS {
-            self.plies_since_single += 1;
+            self.state.plies_since_single += 1;
             self.swap_stm();
             return
         }
 
         // create piece on destination
-        self.place_piece(self.color, mov[TO]);
+        self.place_piece(self.state.color, mov[TO]);
 
         // if destination is not adjacent to source, remove piece at source
         if mov[FROM] != mov[TO] {
-            self.remove_piece(self.color, mov[FROM]);
+            self.remove_piece(self.state.color, mov[FROM]);
         }
 
         // Capture enemy pieces adjacent to destination
         let adjacent_squares: u64 = ADJACENT_SQUARES_TABLE[mov[TO] as usize];
-        let opp_stm = opp_color(self.color);
-        let mut enemies_captured = adjacent_squares & self.bitboards[opp_stm as usize];
+        let opp_stm = opp_color(self.state.color);
+        let mut enemies_captured = adjacent_squares & self.state.bitboards[opp_stm as usize];
         while enemies_captured > 0
         {
             let sq_captured: Square = pop_lsb(&mut enemies_captured) as Square;
             self.remove_piece(opp_stm, sq_captured);
-            self.place_piece(self.color, sq_captured);
+            self.place_piece(self.state.color, sq_captured);
         }
 
         if mov[FROM] == mov[TO] {
-            self.plies_since_single = 0;
+            self.state.plies_since_single = 0;
         }
         else {
-            self.plies_since_single += 1;
+            self.state.plies_since_single += 1;
         }
 
         self.swap_stm();
@@ -233,19 +251,8 @@ impl Board
     pub fn undo_move(&mut self)
     {
         assert!(self.states.len() > 0);
-        let last_state: &Board = self.states.last().unwrap();
-        self.color = last_state.color;
-        self.bitboards = last_state.bitboards;
-        self.blocked = last_state.blocked;
-        self.plies_since_single = last_state.plies_since_single;
-        self.current_move = last_state.current_move;
-        self.mov = last_state.mov;
-        self.zobrist_hash = last_state.zobrist_hash;
+        self.state = *self.states.last().unwrap();
         self.states.pop();
-    }
-
-    pub fn occupancy(&self) -> u64 {
-        self.bitboards[Color::Red as usize] | self.bitboards[Color::Blue as usize]
     }
 
     pub fn moves(&mut self, moves: &mut MovesArray) -> u8
@@ -260,7 +267,7 @@ impl Board
             adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
             let mut leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]
                                         & !self.occupancy()
-                                        & !self.blocked;
+                                        & !self.state.blocked;
             while leap_squares > 0 {
                 let to: Square = pop_lsb(&mut leap_squares) as Square;
                 moves[num_moves as usize] = [from, to];
@@ -268,7 +275,7 @@ impl Board
             }
         }
 
-        adjacent_target_squares &= !self.occupancy() & !self.blocked;
+        adjacent_target_squares &= !self.occupancy() & !self.state.blocked;
         while adjacent_target_squares > 0
         {
             let to: Square = pop_lsb(&mut adjacent_target_squares);
@@ -288,6 +295,52 @@ impl Board
 
         return num_moves;
     }
+    
+    pub fn get_game_result(&mut self) -> GameResult
+    {
+        if self.state.bitboards[Color::Red as usize] == 0 {
+            return GameResult::WinBlue;
+        }
+
+        if self.state.bitboards[Color::Blue as usize] == 0 {
+            return GameResult::WinRed;
+        }
+        
+        if self.occupancy().count_ones() == 49 - self.state.blocked.count_ones()
+        {
+            let num_red_pieces: u8 = self.state.bitboards[Color::Red as usize].count_ones() as u8;
+            let num_blue_pieces: u8 = self.state.bitboards[Color::Blue as usize].count_ones() as u8;
+
+            return if num_red_pieces > num_blue_pieces 
+                       { GameResult::WinRed }
+                   else if num_blue_pieces > num_red_pieces 
+                       { GameResult::WinBlue }
+                   else 
+                       { GameResult::Draw }
+        }
+
+        if !self.must_pass() {
+            return if self.state.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
+        }
+
+        self.state.color = opp_color(self.state.color);
+        let opponent_must_pass: bool = self.must_pass();
+        self.state.color = opp_color(self.state.color);
+
+        if !opponent_must_pass {
+            return if self.state.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
+        }
+
+        let num_red_pieces: u8 = self.state.bitboards[Color::Red as usize].count_ones() as u8;
+        let num_blue_pieces: u8 = self.state.bitboards[Color::Blue as usize].count_ones() as u8;
+
+        return if num_red_pieces > num_blue_pieces 
+                   { GameResult::WinRed }
+               else if num_blue_pieces > num_red_pieces 
+                   { GameResult::WinBlue }
+               else 
+                   { GameResult::Draw }
+    }
 
     pub fn must_pass(&self) -> bool
     {
@@ -300,64 +353,18 @@ impl Board
             adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
             let leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]
                                     & !self.occupancy()
-                                    & !self.blocked;
+                                    & !self.state.blocked;
             if leap_squares > 0 {
                 return false;
             }
         }
 
-        adjacent_target_squares &= !self.occupancy() & !self.blocked;
+        adjacent_target_squares &= !self.occupancy() & !self.state.blocked;
         if adjacent_target_squares > 0 {
             return false;
         }
 
         true
-    }
- 
-    pub fn get_game_result(&mut self) -> GameResult
-    {
-        if self.bitboards[Color::Red as usize] == 0 {
-            return GameResult::WinBlue;
-        }
-
-        if self.bitboards[Color::Blue as usize] == 0 {
-            return GameResult::WinRed;
-        }
-        
-        if self.occupancy().count_ones() == 49 - self.blocked.count_ones()
-        {
-            let num_red_pieces: u8 = self.bitboards[Color::Red as usize].count_ones() as u8;
-            let num_blue_pieces: u8 = self.bitboards[Color::Blue as usize].count_ones() as u8;
-
-            return if num_red_pieces > num_blue_pieces 
-                       { GameResult::WinRed }
-                   else if num_blue_pieces > num_red_pieces 
-                       { GameResult::WinBlue }
-                   else 
-                       { GameResult::Draw }
-        }
-
-        if !self.must_pass() {
-            return if self.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
-        }
-
-        self.color = opp_color(self.color);
-        let opponent_must_pass: bool = self.must_pass();
-        self.color = opp_color(self.color);
-
-        if !opponent_must_pass {
-            return if self.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
-        }
-
-        let num_red_pieces: u8 = self.bitboards[Color::Red as usize].count_ones() as u8;
-        let num_blue_pieces: u8 = self.bitboards[Color::Blue as usize].count_ones() as u8;
-
-        return if num_red_pieces > num_blue_pieces 
-                   { GameResult::WinRed }
-               else if num_blue_pieces > num_red_pieces 
-                   { GameResult::WinBlue }
-               else 
-                   { GameResult::Draw }
     }
 
     pub fn eval(&mut self) -> i16
@@ -382,6 +389,5 @@ impl Board
     pub fn num_adjacent_enemies(&self, sq: Square) -> u8 {
         (ADJACENT_SQUARES_TABLE[sq as usize] & self.them()).count_ones() as u8
     }
-
 
 }
