@@ -1,6 +1,7 @@
 mod types;
 mod utils;
 mod tables;
+mod nnue;
 mod board;
 mod perft;
 mod tt;

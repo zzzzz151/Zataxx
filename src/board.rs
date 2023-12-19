@@ -1,6 +1,7 @@
 use crate::types::*;
 use crate::utils::*;
 use crate::tables::*;
+use crate::nnue::*;
 
 #[derive(Copy, Clone)]
 pub struct BoardState
@@ -11,7 +12,8 @@ pub struct BoardState
     pub plies_since_single: u16,
     pub current_move: u16,
     pub mov: Move,
-    pub zobrist_hash: u64
+    pub zobrist_hash: u64,
+    pub accumulator: Accumulator
 }
 
 impl BoardState 
@@ -24,7 +26,8 @@ impl BoardState
             plies_since_single: 0,
             current_move: 1,
             mov: MOVE_NONE,
-            zobrist_hash: 0
+            zobrist_hash: 0,
+            accumulator: Accumulator::default()
         }
     }
 }
@@ -75,6 +78,7 @@ impl Board
                 }
                 else if my_char == '-' {
                     board.state.blocked |= 1u64 << sq;
+                    board.state.accumulator.activate_blocker(sq as Square);
                 }
                 else
                 {
@@ -134,12 +138,14 @@ impl Board
     {
         self.state.bitboards[color as usize] |= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
+        self.state.accumulator.update(color, sq, true);
     }
 
     pub fn remove_piece(&mut self, color: Color, sq: Square)
     {
         self.state.bitboards[color as usize] ^= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
+        self.state.accumulator.update(color, sq, false);
     }
 
     pub fn print(&self) {
@@ -365,25 +371,6 @@ impl Board
         }
 
         true
-    }
-
-    pub fn eval(&mut self) -> i16
-    {
-        let mut eval: i16 = 0;
-
-        let mut us: u64 = self.us();
-        while us > 0 {
-            let sq: u8 = pop_lsb(&mut us);
-            eval += PST[sq as usize];
-        }
-
-        let mut them: u64 = self.them();
-        while them > 0 {
-            let sq: u8 = pop_lsb(&mut them);
-            eval -= PST[sq as usize];
-        }
-
-        eval
     }
 
     pub fn num_adjacent_enemies(&self, sq: Square) -> u8 {

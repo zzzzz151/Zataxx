@@ -4,6 +4,7 @@ use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
 use crate::tt::*;
+use crate::nnue::*;
 
 pub struct SearchData {
     pub board: Board,
@@ -77,7 +78,9 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         }
     }
 
-    if depth <= 0 { return search_data.board.eval(); }
+    if depth <= 0 { 
+        return evaluate(search_data.board.state.color, &search_data.board.state.accumulator); 
+    }
 
     if depth > search_data.max_depth.into() { depth = search_data.max_depth as i16; }
 
@@ -97,7 +100,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     }
 
     let pv_node: bool = (beta as i32 - alpha as i32) > 1 || ply == 0;
-    let eval = search_data.board.eval();
+    let eval = evaluate(search_data.board.state.color, &search_data.board.state.accumulator);
 
     if !pv_node
     {
