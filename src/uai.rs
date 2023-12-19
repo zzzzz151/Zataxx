@@ -62,7 +62,7 @@ pub fn uai_loop(search_data: &mut SearchData)
                 println!("{}", search_data.board.get_game_result().to_string());
             }
             "genopenings" => {
-                generate_openings("openings.txt", 4, 3000);
+                generate_openings("openings.txt", 8, 3000);
             }
             "datagen" => {
                 datagen();

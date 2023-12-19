@@ -160,18 +160,16 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
             -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
         } else {
             // LMR (Late move reductions)
-            /*
-            let lmr: i16 = if depth >= 3 && move_score == 0 {
+            let lmr: i16 = if depth >= 3 && i >= 2 {
                 let mut value: i16 = search_data.lmr_table[depth as usize][i as usize] as i16;
                 value -= pv_node as i16; // reduce pv nodes less
                 clamp(value, 0, depth - 2) // dont extend and dont reduce into eval
             } else {
                 0
             };
-            */
 
-            let null_window_score = -pvs(search_data, depth - 1 /*- lmr*/, ply + 1, -alpha - 1, -alpha);
-            if null_window_score > alpha && (null_window_score < beta /*|| lmr > 0*/) {
+            let null_window_score = -pvs(search_data, depth - 1 - lmr, ply + 1, -alpha - 1, -alpha);
+            if null_window_score > alpha && (null_window_score < beta || lmr > 0) {
                 -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
             } else {
                 null_window_score

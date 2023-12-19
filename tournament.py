@@ -10,8 +10,8 @@ import signal
 from sprt import *
 
 # Constants
-GAME_MILLISECONDS = 10000
-GAME_INCREMENT_MILLISECONDS = 100
+GAME_MILLISECONDS = 12000
+GAME_INCREMENT_MILLISECONDS = 120
 GAME_RESULT_NORMAL = 0
 GAME_RESULT_OUT_OF_TIME = 1
 GAME_RESULT_ILLEGAL_MOVE = 2
@@ -302,10 +302,12 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, lambda signum, frame: handle_ctrl_c())
 
     # Load openings from openings file
-    openings_file = open("openings_3ply.txt", "r")
+    openings_file = open("openings_8ply.txt", "r")
     openings = openings_file.readlines()
     openings_file.close()
     assert len(openings) >= 10
+    for i in range(len(openings)):
+        openings[i] = openings[i].replace("r", "x").replace("b", "o")
 
     # Create folder 'debug'
     if not os.path.exists("debug"):

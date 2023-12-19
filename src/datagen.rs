@@ -22,7 +22,7 @@ pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
 
     let mut search_data = SearchData {
         board: Board::default(),
-        max_depth: 6,
+        max_depth: 12,
         start_time: Instant::now(),
         milliseconds: 4294967295,
         turn_milliseconds: 0,
