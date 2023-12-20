@@ -10,10 +10,14 @@ target
 target/
 __pycache__
 __pycache__/
+tournament/__pycache__
+tournament/__pycache__/
 temp
 temp/
 debug
 debug/
+tournament/debug
+tournament/debug/
 data
 data/
 

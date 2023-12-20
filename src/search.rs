@@ -86,7 +86,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     // ID (Iterative deepening)
     for iteration_depth in 1..=search_data.max_depth 
     {
-        let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
+        let iteration_score = pvs(search_data, iteration_depth as i16, 0, -INFINITY, INFINITY);
 
         if search_data.is_hard_time_up() { break; }
 
@@ -108,6 +108,40 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     assert!(search_data.best_move_root != MOVE_NONE);
     (search_data.best_move_root, score)
 }
+
+/*
+fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i16) -> i16
+{
+    let mut delta: i16 = 80;
+    let mut alpha: i16 = (score - delta).max(-INFINITY);
+    let mut beta: i16 = (score + delta).min(INFINITY);
+    let mut depth: i16 = iteration_depth as i16;
+
+    loop
+    {
+        score = pvs(search_data, depth, 0, -INFINITY, INFINITY);
+
+        if search_data.is_hard_time_up() { return 0; }
+
+        if score >= beta {
+            beta = (beta + delta).min(INFINITY);
+            depth -= 1;
+        }
+        else if score <= alpha {
+            beta = (alpha + beta) / 2;
+            alpha = (alpha - delta).max(-INFINITY);
+            depth = iteration_depth as i16;
+        }
+        else {
+            break;
+        }
+
+        delta *= 2;
+    }
+
+    score
+}
+*/
 
 fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
