@@ -11,7 +11,6 @@ pub struct SearchData {
     pub max_depth: u8,
     pub start_time: Instant,
     pub milliseconds: u32,
-    pub turn_milliseconds: u32,
     pub time_is_up: bool,
     pub soft_nodes: u32,
     pub hard_nodes: u32,
@@ -23,10 +22,9 @@ pub struct SearchData {
 
 pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 {
-    search_data.turn_milliseconds = search_data.milliseconds / 24;
-    search_data.time_is_up = false;
     search_data.best_move_root = MOVE_NONE;
     search_data.nodes = 0;
+    search_data.time_is_up = false;
 
     let mut score: i16 = 0;
 
@@ -35,7 +33,8 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     {
         let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
-        if is_time_up(search_data) { 
+        // Check hard time limit
+        if is_hard_time_up(search_data) { 
             break; 
         }
 
@@ -51,7 +50,9 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
         
         score = iteration_score;
 
-        if search_data.nodes >= search_data.soft_nodes.into() {
+        // Check soft time limit
+        if search_data.nodes >= search_data.soft_nodes.into() 
+        || milliseconds_elapsed(search_data.start_time) >= (search_data.milliseconds / 20) {
             break;
         }
     }
@@ -62,7 +63,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 
 fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
-    if is_time_up(search_data) { return 0; }
+    if is_hard_time_up(search_data) { return 0; }
 
     if ply > 0
     {
@@ -113,7 +114,8 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
     assert!(num_moves > 0);
-    let tt_move = if tt_hit {tt_entry_probed.get_move()} else {MOVE_NONE};
+    let tt_move = if tt_hit { search_data.tt.entries[tt_entry_index].get_move() }
+                  else {MOVE_NONE};
 
     // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];
@@ -178,7 +180,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
         search_data.board.undo_move();
 
-        if is_time_up(search_data) {
+        if is_hard_time_up(search_data) {
             return 0; 
         }
 
@@ -214,13 +216,13 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     best_score
 }
 
-fn is_time_up(search_data: &mut SearchData) -> bool {
+fn is_hard_time_up(search_data: &mut SearchData) -> bool {
     if search_data.time_is_up || search_data.nodes >= search_data.hard_nodes.into() { 
         return true; 
     }
     if (search_data.nodes % 1024) != 0 {
         return false;
     }
-    search_data.time_is_up = milliseconds_elapsed(search_data.start_time) >= search_data.turn_milliseconds;
+    search_data.time_is_up = milliseconds_elapsed(search_data.start_time) >= (search_data.milliseconds / 2);
     search_data.time_is_up
 }

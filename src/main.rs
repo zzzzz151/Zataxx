@@ -36,7 +36,6 @@ fn main() {
         max_depth: 100,
         start_time: Instant::now(),
         milliseconds: 4294967295,
-        turn_milliseconds: 0,
         time_is_up: false,
         soft_nodes: 4294967295,
         hard_nodes: 4294967295,
