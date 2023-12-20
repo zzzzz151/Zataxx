@@ -122,7 +122,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
 pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
 {
     search_data.start_time = Instant::now();
-    search_data.milliseconds = 4294967295;
+    search_data.milliseconds = U64_MAX;
     for i in 1..tokens.len() {
         if (tokens[i] == "rtime" && search_data.board.state.color == Color::Red)
         || (tokens[i] == "btime" && search_data.board.state.color == Color::Blue)
@@ -131,7 +131,7 @@ pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
         }
     }
 
-    let best_move: Move = search(search_data, true).0;
-    assert!(best_move != MOVE_NONE);
-    println!("bestmove {}", move_to_str(best_move));
+    search(search_data, true);
+    assert!(search_data.best_move_root != MOVE_NONE);
+    println!("bestmove {}", move_to_str(search_data.best_move_root));
 }

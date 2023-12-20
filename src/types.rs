@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-pub type Square = u8;
+pub const U64_MAX: u64 = 18446744073709551615;
 
+pub type Square = u8;
 pub const SQUARE_NONE: Square = 255;
 
 #[repr(u8)]
@@ -37,7 +38,6 @@ pub enum File {
     F = 5,
     G = 6
 }
-
 
 #[repr(u8)]
 #[derive(Clone, Copy)]

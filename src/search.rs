@@ -1,5 +1,5 @@
 use std::time::Instant;
-//use crate::tables::*;
+use crate::tables::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
@@ -9,22 +9,77 @@ use crate::nnue::*;
 pub struct SearchData {
     pub board: Board,
     pub max_depth: u8,
-    pub start_time: Instant,
-    pub milliseconds: u32,
-    pub time_is_up: bool,
-    pub soft_nodes: u32,
-    pub hard_nodes: u32,
     pub best_move_root: Move,
+    pub start_time: Instant,
+    pub milliseconds: u64,
+    pub time_is_up: bool,
     pub nodes: u64,
+    pub root_move_nodes: [[u64; 49]; 49],
+    pub soft_nodes: u64,
+    pub hard_nodes: u64,
     pub tt: TT,
     pub lmr_table: [[u8; 256]; 256]
+}
+
+impl SearchData
+{
+    pub fn new(board: Board, max_depth: u8, milliseconds: u64, soft_nodes: u64, hard_nodes: u64) -> Self {
+        Self {
+            board: board,
+            max_depth: max_depth,
+            best_move_root: MOVE_NONE,
+            start_time: Instant::now(),
+            milliseconds: milliseconds,
+            time_is_up: false,
+            nodes: 0,
+            root_move_nodes: [[0; 49]; 49],
+            soft_nodes: soft_nodes,
+            hard_nodes: hard_nodes,
+            tt: TT::new(DEFAULT_TT_SIZE_MB),
+            lmr_table: get_lmr_table()
+        }
+    }
+
+    pub fn is_hard_time_up(&mut self) -> bool 
+    {
+        if self.time_is_up || self.nodes >= self.hard_nodes { 
+            return true; 
+        }
+        if (self.nodes % 1024) != 0 {
+            return false;
+        }
+        self.time_is_up = milliseconds_elapsed(self.start_time) >= (self.milliseconds / 2);
+        self.time_is_up
+    }
+
+    pub fn is_soft_time_up(&self) -> bool 
+    {
+        if self.nodes >= self.soft_nodes {
+            return true;
+        }
+
+        let move_nodes_fraction: f64 = if self.best_move_root == MOVE_PASS { 
+                                           1.0 
+                                       } else {
+                                           let best_move_nodes = self.root_move_nodes
+                                                                 [self.best_move_root[FROM] as usize]
+                                                                 [self.best_move_root[TO] as usize];
+                                           best_move_nodes as f64 / self.nodes.max(1) as f64
+                                       };
+
+        let soft_time_scale = (0.5 + 1.0 - move_nodes_fraction) * 1.5;
+
+        milliseconds_elapsed(self.start_time) 
+        >= ((self.milliseconds as f64 * 0.05 * soft_time_scale) as u64)
+    }
 }
 
 pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 {
     search_data.best_move_root = MOVE_NONE;
-    search_data.nodes = 0;
     search_data.time_is_up = false;
+    search_data.nodes = 0;
+    search_data.root_move_nodes = [[0; 49]; 49];
 
     let mut score: i16 = 0;
 
@@ -33,10 +88,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     {
         let iteration_score = pvs(search_data, iteration_depth as i16, 0 as i16, -INFINITY, INFINITY);
 
-        // Check hard time limit
-        if is_hard_time_up(search_data) { 
-            break; 
-        }
+        if search_data.is_hard_time_up() { break; }
 
         if print_info {
             println!("info depth {} score {} time {} nodes {} nps {} pv {}",
@@ -50,11 +102,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
         
         score = iteration_score;
 
-        // Check soft time limit
-        if search_data.nodes >= search_data.soft_nodes.into() 
-        || milliseconds_elapsed(search_data.start_time) >= (search_data.milliseconds / 20) {
-            break;
-        }
+        if search_data.is_soft_time_up() { break; }
     }
 
     assert!(search_data.best_move_root != MOVE_NONE);
@@ -63,7 +111,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 
 fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
 {
-    if is_hard_time_up(search_data) { return 0; }
+    if search_data.is_hard_time_up() { return 0; }
 
     if ply > 0
     {
@@ -83,7 +131,9 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         return evaluate(search_data.board.state.color, &search_data.board.state.accumulator); 
     }
 
-    if depth > search_data.max_depth.into() { depth = search_data.max_depth as i16; }
+    if depth > search_data.max_depth.into() { 
+        depth = search_data.max_depth as i16; 
+    }
 
     // Probe TT
     let tt_entry_index = search_data.board.state.zobrist_hash as usize % search_data.tt.entries.len();
@@ -156,6 +206,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         
         search_data.board.make_move(mov);
         search_data.nodes += 1;
+        let nodes_before = search_data.nodes;
 
         // PVS (Principal variation search)
         let score = if i == 0 {
@@ -180,7 +231,12 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
         search_data.board.undo_move();
 
-        if is_hard_time_up(search_data) {
+        if ply == 0 && mov != MOVE_PASS {
+            search_data.root_move_nodes[mov[FROM] as usize][mov[TO] as usize] 
+                += search_data.nodes - nodes_before;
+        }
+
+        if search_data.is_hard_time_up() {
             return 0; 
         }
 
@@ -214,15 +270,4 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
                                              else { Bound::Exact });
 
     best_score
-}
-
-fn is_hard_time_up(search_data: &mut SearchData) -> bool {
-    if search_data.time_is_up || search_data.nodes >= search_data.hard_nodes.into() { 
-        return true; 
-    }
-    if (search_data.nodes % 1024) != 0 {
-        return false;
-    }
-    search_data.time_is_up = milliseconds_elapsed(search_data.start_time) >= (search_data.milliseconds / 2);
-    search_data.time_is_up
 }

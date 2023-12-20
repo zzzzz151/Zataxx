@@ -4,9 +4,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use crate::types::*;
 use crate::utils::*;
-use crate::tables::*;
 use crate::board::*;
-use crate::tt::*;
 use crate::search::*;
 
 pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
@@ -17,22 +15,9 @@ pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
+    let mut search_data = SearchData::new(Board::new(START_FEN), 12, U64_MAX, U64_MAX, U64_MAX);
     let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(num_openings.into());
     let mut rng = rand::thread_rng();
-
-    let mut search_data = SearchData {
-        board: Board::default(),
-        max_depth: 12,
-        start_time: Instant::now(),
-        milliseconds: 4294967295,
-        time_is_up: false,
-        soft_nodes: 4294967295,
-        hard_nodes: 4294967295,
-        best_move_root: MOVE_NONE,
-        nodes: 0,
-        tt: TT::new(DEFAULT_TT_SIZE_MB),
-        lmr_table: get_lmr_table()
-    };
 
     while zobrist_hashes_written.len() < num_openings.into()    
     {
@@ -92,22 +77,9 @@ pub fn datagen()
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
-    let mut search_data = SearchData {
-        board: Board::default(),
-        max_depth: 100,
-        start_time: Instant::now(),
-        milliseconds: 4294967295,
-        time_is_up: false,
-        soft_nodes: 5000,
-        hard_nodes: 8_000_000,
-        best_move_root: MOVE_NONE,
-        nodes: 0,
-        tt: TT::new(DEFAULT_TT_SIZE_MB),
-        lmr_table: get_lmr_table()
-    };
-
+    let mut search_data = SearchData::new(Board::new(START_FEN), 100, U64_MAX, 5000 as u64, 8_000_000 as u64);
     let mut rng = rand::thread_rng();
-    let mut positions_written: u32 = 0;
+    let mut positions_written: u64 = 0;
     let datagen_start_time = Instant::now();
 
     // Infinite loop
@@ -185,7 +157,7 @@ pub fn datagen()
             let _ = file.write_all(line.as_bytes());
         }
 
-        positions_written += lines.len() as u32;
+        positions_written += lines.len() as u64;
         println!("{} | Positions: {} | Positions/sec: {}",
                  file_path, 
                  positions_written, 
