@@ -123,11 +123,25 @@ pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
 {
     search_data.start_time = Instant::now();
     search_data.milliseconds = U64_MAX;
-    for i in 1..tokens.len() {
+
+    let mut is_wtime_btime: bool = true;
+    for i in (1..tokens.len()).step_by(2) {
+        if tokens[i] == "rtime"
+        {
+            is_wtime_btime = false;
+            break;
+        }
+    }
+
+    for i in (1..tokens.len()).step_by(2) {
         if (tokens[i] == "rtime" && search_data.board.state.color == Color::Red)
-        || (tokens[i] == "btime" && search_data.board.state.color == Color::Blue)
+        || (tokens[i] == "wtime" && search_data.board.state.color == Color::Blue)
+        || (tokens[i] == "btime" 
+        && ((is_wtime_btime && search_data.board.state.color == Color::Red)
+        || (!is_wtime_btime && search_data.board.state.color == Color::Blue)))
         {
             search_data.milliseconds = tokens[i+1].parse().unwrap();
+            break;
         }
     }
 
