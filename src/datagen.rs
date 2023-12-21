@@ -2,24 +2,41 @@ use rand::Rng;
 use std::time::Instant;
 use std::fs::File;
 use std::io::prelude::*;
+use std::fs;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
 use crate::search::*;
 
-pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
+pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+pub fn datagen_openings()
 {
+    // Create 'data' folder
+    let _ = fs::create_dir_all("data");
+
+    // random file name
+    let file_name: String = (0..12)
+    .map(|_| {
+        let random_index = rand::thread_rng().gen_range(0..CHARACTERS.len());
+        CHARACTERS.chars().nth(random_index).unwrap()
+    })
+    .collect();
+
+    let file_path = format!("data/{}.txt", file_name);
+
     // Open the file in write mode, creating it if it doesn't exist
-    let mut file = match File::create(&file_path) {
+    let mut file = match File::create(file_path.clone()) {
         Ok(file) => file,
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
-    let mut search_data = SearchData::new(Board::new(START_FEN), 12, U64_MAX, U64_MAX, U64_MAX);
-    let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(num_openings.into());
+    let mut search_data = SearchData::new(Board::new(START_FEN), 100, U64_MAX, 1_000_000, 100_000_000);
+    let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(1024);
     let mut rng = rand::thread_rng();
+    let ply: usize = 8;
 
-    while zobrist_hashes_written.len() < num_openings.into()    
+    loop    
     {
         let fen: &str = if zobrist_hashes_written.len() % 2 == 0 { START_FEN } else { START_FEN2 };
         search_data.board = Board::new(fen);
@@ -46,13 +63,13 @@ pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
         search_data.start_time = Instant::now();
         let score: i16 = search(&mut search_data, false).1;
 
-        if score.abs() <= 100 {
+        if score.abs() <= 1 {
             let line: String = search_data.board.fen() + "\n";
+            //print!("Writing opening {}", line);
             let _ = file.write_all(line.as_bytes());
             zobrist_hashes_written.push(search_data.board.state.zobrist_hash);
-            println!("Openings written: {}", zobrist_hashes_written.len());
+            println!("{} | Openings written: {}", file_path, zobrist_hashes_written.len());
         }
-
     }
 }
 
@@ -60,12 +77,14 @@ pub fn generate_openings(file_path: &str, ply: u8, num_openings: u16)
 
 pub fn datagen()
 {    
+    // Create 'data' folder
+    let _ = fs::create_dir_all("data");
+
     // random file name
-    let characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let file_name: String = (0..12)
     .map(|_| {
-        let random_index = rand::thread_rng().gen_range(0..characters.len());
-        characters.chars().nth(random_index).unwrap()
+        let random_index = rand::thread_rng().gen_range(0..CHARACTERS.len());
+        CHARACTERS.chars().nth(random_index).unwrap()
     })
     .collect();
 
