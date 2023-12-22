@@ -224,11 +224,11 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     {
         let (mov, move_score) = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
 
-        if ply > 0 && best_score > -MIN_WIN_SCORE && move_score <= 1
+        if ply > 0 && best_score > -MIN_WIN_SCORE
         {
             // FP (Futility pruning)
-            if depth <= 5 && alpha < MIN_WIN_SCORE
-            && eval + 140 + depth * 75 <= alpha {
+            if depth <= 5 && alpha < MIN_WIN_SCORE && i >= 3
+            && eval + 40 + depth * 20 <= alpha {
                 break;
             }
         }
