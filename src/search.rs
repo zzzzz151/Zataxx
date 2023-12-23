@@ -190,7 +190,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     if !pv_node
     {
         // RFP (Reverse futility pruning)
-        if depth <= 5 && eval >= beta + depth * 75 {
+        if depth <= 5 && eval >= beta + depth * 50 {
             return eval;
         }
     }
