@@ -226,6 +226,11 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
 
         if ply > 0 && best_score > -MIN_WIN_SCORE
         {
+            // LMP (Late move pruning)
+            if move_score == 0 && i >= 2 {
+                break;
+            }
+
             // FP (Futility pruning)
             if depth <= 5 && alpha < MIN_WIN_SCORE && i >= 3
             && eval + 40 + depth * 20 <= alpha {

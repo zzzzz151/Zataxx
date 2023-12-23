@@ -47,6 +47,7 @@ The exe will be in target/release.
 ### Pruning
 - Alpha-beta pruning
 - Reverse futility pruning
+- Late move pruning
 - Futility pruning
 
 ### Reductions
