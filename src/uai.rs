@@ -85,6 +85,7 @@ pub fn setoption(tokens: Vec<&str>, search_data: &mut SearchData)
 pub fn uainewgame(search_data: &mut SearchData)
 {
     search_data.tt.reset();
+    search_data.killers = [MOVE_NONE; 256];
 }
 
 pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)

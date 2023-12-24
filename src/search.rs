@@ -18,7 +18,8 @@ pub struct SearchData {
     pub soft_nodes: u64,
     pub hard_nodes: u64,
     pub tt: TT,
-    pub lmr_table: [[u8; 256]; 256]
+    pub lmr_table: [[u8; 256]; 256],
+    pub killers: [Move; 256]
 }
 
 impl SearchData
@@ -36,7 +37,8 @@ impl SearchData
             soft_nodes: soft_nodes,
             hard_nodes: hard_nodes,
             tt: TT::new(DEFAULT_TT_SIZE_MB),
-            lmr_table: get_lmr_table()
+            lmr_table: get_lmr_table(),
+            killers: [MOVE_NONE; 256]
         }
     }
 
@@ -161,7 +163,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         }
     }
 
-    if depth <= 0 { 
+    if depth <= 0 || ply >= search_data.max_depth.into() { 
         return evaluate(search_data.board.state.color, &search_data.board.state.accumulator); 
     }
 
@@ -204,14 +206,15 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];
     if num_moves > 1 {
-        for i in 0..num_moves { 
-            let mov: Move = moves[i as usize];
+        for i in 0..(num_moves as usize) { 
+            let mov: Move = moves[i];
             if mov == tt_move {
-                moves_scores[i as usize] = 255;
+                moves_scores[i] = 255;
             }
             else {
-                moves_scores[i as usize] = (mov[TO] == mov[FROM]) as u8;
-                moves_scores[i as usize] += search_data.board.num_adjacent_enemies(mov[TO]);
+                moves_scores[i] = (mov == search_data.killers[ply as usize]) as u8 * 2;
+                moves_scores[i] += (mov[TO] == mov[FROM]) as u8;
+                moves_scores[i] += search_data.board.num_adjacent_enemies(mov[TO]);
             }
         }
     }
@@ -287,6 +290,8 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         if score < beta { continue; }
 
         // Fail high / beta cutoff
+
+        search_data.killers[ply as usize] = mov;
 
         break; // Fail high / beta cutoff
     }

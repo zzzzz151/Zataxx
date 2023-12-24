@@ -60,6 +60,7 @@ pub fn datagen_openings()
         }     
 
         search_data.tt.reset();
+        search_data.killers = [MOVE_NONE; 256];
         search_data.start_time = Instant::now();
         let score: i16 = search(&mut search_data, false).1;
 
@@ -133,6 +134,7 @@ pub fn datagen()
 
         // Play out game
         loop {
+            search_data.killers = [MOVE_NONE; 256];
             search_data.start_time = Instant::now();
             let (mov, mut score) = search(&mut search_data, false);
             assert!(mov != MOVE_NONE);
