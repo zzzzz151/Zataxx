@@ -197,11 +197,18 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         }
     }
 
+    let tt_move = if tt_hit { search_data.tt.entries[tt_entry_index].get_move() }
+                  else {MOVE_NONE};
+
+    // IIR (Internal iterative reduction)
+    if tt_move == MOVE_NONE && depth >= 3 {
+        depth -= 1;
+    }
+
+    // Generate moves
     let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
     let num_moves = search_data.board.moves(&mut moves);
     assert!(num_moves > 0);
-    let tt_move = if tt_hit { search_data.tt.entries[tt_entry_index].get_move() }
-                  else {MOVE_NONE};
 
     // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];
