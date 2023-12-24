@@ -46,7 +46,17 @@ impl TTEntry
         bound 
     }
 
-    pub fn store_move_and_bound(&mut self, mov: Move, bound: Bound) {
+    pub fn set_move(&mut self, mov: Move) {
+        self.move_and_bound &= 0b0000_0000_0000_0011;
+        self.move_and_bound |= (mov[FROM] as u16) << 10;
+        self.move_and_bound |= (mov[TO] as u16) << 4;
+    }
+
+    pub fn set_bound(&mut self, bound: Bound) {
+        self.move_and_bound = (self.move_and_bound & 0b1111_1111_1111_1100) | bound as u16;
+    }
+
+    pub fn set_move_and_bound(&mut self, mov: Move, bound: Bound) {
         let from: u16 = mov[FROM] as u16;
         let to: u16 = mov[TO] as u16;
         self.move_and_bound = (from << 10) | (to << 4) | (bound as u16);

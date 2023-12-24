@@ -19,7 +19,7 @@ pub struct SearchData {
     pub hard_nodes: u64,
     pub tt: TT,
     pub lmr_table: [[u8; 256]; 256],
-    pub killers: [Move; 256]
+    pub killers: [Move; 256],
 }
 
 impl SearchData
@@ -38,7 +38,7 @@ impl SearchData
             hard_nodes: hard_nodes,
             tt: TT::new(DEFAULT_TT_SIZE_MB),
             lmr_table: get_lmr_table(),
-            killers: [MOVE_NONE; 256]
+            killers: [MOVE_NONE; 256],
         }
     }
 
@@ -304,9 +304,13 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
                      else if best_score <= -MIN_WIN_SCORE { best_score - ply }
                      else { best_score };
 
-    tt_entry.store_move_and_bound(best_move, if best_score <= original_alpha { Bound::Upper }
-                                             else if best_score >= beta { Bound::Lower }
-                                             else { Bound::Exact });
+    if best_move != MOVE_NONE {
+        tt_entry.set_move(best_move);
+    }
+
+    tt_entry.set_bound(if best_score <= original_alpha { Bound::Upper }
+                       else if best_score >= beta { Bound::Lower }
+                       else { Bound::Exact });
 
     best_score
 }
