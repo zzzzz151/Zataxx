@@ -67,8 +67,8 @@ pub const START_FEN2: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
 pub type Move = [Square; 2];
 pub const FROM: usize = 0;
 pub const TO: usize = 1;
-pub const MOVE_NONE: Move = [255, 255];
-pub const MOVE_PASS: Move = [254, 254];
+pub const MOVE_PASS: Move = [50, 50];
+pub const MOVE_NONE: Move = [51, 51];
 pub type MovesArray = [Move; 256];
 pub const EMPTY_MOVES_ARRAY: MovesArray = [MOVE_NONE; 256];
 
