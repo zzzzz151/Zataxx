@@ -87,7 +87,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     // ID (Iterative deepening)
     for iteration_depth in 1..=search_data.max_depth 
     {
-        let iteration_score = pvs(search_data, iteration_depth as i16, 0, -INFINITY, INFINITY, EVAL_NONE, 5);
+        let iteration_score = pvs(search_data, iteration_depth as i16, 0, -INFINITY, INFINITY, EVAL_NONE);
 
         if search_data.is_hard_time_up() { break; }
 
@@ -144,8 +144,8 @@ fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i16)
 }
 */
 
-fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16, 
-        mut eval: i16, mut double_extensions: i8) -> i16
+fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, 
+       mut alpha: i16, beta: i16, mut eval: i16) -> i16
 {
     if search_data.is_hard_time_up() { return 0; }
 
@@ -172,7 +172,6 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     if depth > search_data.max_depth.into() { 
         depth = search_data.max_depth as i16; 
     }
-
 
     // Probe TT
     let tt_entry_index = search_data.board.state.zobrist_hash as usize % search_data.tt.entries.len();
@@ -265,10 +264,18 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         {
             let singular_beta: i16 = (tt_entry.score - depth).max(-INFINITY);
             let singular_score = pvs(search_data, (depth - 1) / 2, ply, 
-                                     singular_beta - 1, singular_beta, eval, double_extensions);
+                                     singular_beta - 1, singular_beta, eval);
 
             if singular_score < singular_beta {
                 extension = 1;
+            }
+            // Multicut
+            else if singular_beta >= beta {
+                return singular_beta;
+            }
+            // Negative extenesion
+            else if tt_entry.score >= beta {
+                extension = -1;
             }
         }
 
@@ -279,7 +286,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         // PVS (Principal variation search)
         let score = if i == 0 {
             -pvs(search_data, depth - 1 + extension, ply + 1,
-                 -beta, -alpha, EVAL_NONE, double_extensions)
+                 -beta, -alpha, EVAL_NONE)
         } else {
             // LMR (Late move reductions)
             let lmr: i16 = if depth >= 3 && i >= 2 {
@@ -291,10 +298,10 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
             };
 
             let null_window_score = -pvs(search_data, depth - 1 - lmr, ply + 1, 
-                                         -alpha - 1, -alpha, EVAL_NONE, double_extensions);
+                                         -alpha - 1, -alpha, EVAL_NONE);
 
             if null_window_score > alpha && (null_window_score < beta || lmr > 0) {
-                -pvs(search_data, depth - 1, ply + 1, -beta, -alpha, EVAL_NONE, double_extensions)
+                -pvs(search_data, depth - 1, ply + 1, -beta, -alpha, EVAL_NONE)
             } else {
                 null_window_score
             }
