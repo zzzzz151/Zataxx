@@ -4,7 +4,6 @@ use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
 use crate::tt::*;
-use crate::nnue::*;
 
 pub struct SearchData {
     pub board: Board,
@@ -88,7 +87,7 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
     // ID (Iterative deepening)
     for iteration_depth in 1..=search_data.max_depth 
     {
-        let iteration_score = pvs(search_data, iteration_depth as i16, 0, -INFINITY, INFINITY);
+        let iteration_score = pvs(search_data, iteration_depth as i16, 0, -INFINITY, INFINITY, EVAL_NONE, 5);
 
         if search_data.is_hard_time_up() { break; }
 
@@ -145,11 +144,14 @@ fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i16)
 }
 */
 
-fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16) -> i16
+fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, beta: i16, 
+        mut eval: i16, mut double_extensions: i8) -> i16
 {
     if search_data.is_hard_time_up() { return 0; }
 
-    if ply > 0
+    let singular: bool = eval != EVAL_NONE;
+
+    if ply > 0 && !singular
     {
         let game_result: GameResult = search_data.board.get_game_result();
         if game_result == GameResult::Draw {
@@ -164,41 +166,43 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     }
 
     if depth <= 0 || ply >= search_data.max_depth.into() { 
-        return evaluate(search_data.board.state.color, &search_data.board.state.accumulator); 
+        return search_data.board.evaluate();
     }
 
     if depth > search_data.max_depth.into() { 
         depth = search_data.max_depth as i16; 
     }
 
+
     // Probe TT
     let tt_entry_index = search_data.board.state.zobrist_hash as usize % search_data.tt.entries.len();
-    let tt_entry_probed: &TTEntry = &search_data.tt.entries[tt_entry_index];
-    let tt_hit: bool = search_data.board.state.zobrist_hash == tt_entry_probed.zobrist_hash;
-    let bound: Bound = tt_entry_probed.get_bound();
+    let tt_entry: TTEntry = search_data.tt.entries[tt_entry_index];
+    let tt_hit: bool = search_data.board.state.zobrist_hash == tt_entry.zobrist_hash;
+    let bound: Bound = tt_entry.get_bound();
 
     // TT cutoff
-    if ply > 0 && tt_hit && tt_entry_probed.depth >= (depth as u8)
+    if ply > 0 && !singular && tt_hit 
+    && tt_entry.depth >= (depth as u8)
     && (bound == Bound::Exact
-    || (bound == Bound::Lower && tt_entry_probed.score >= beta)
-    || (bound == Bound::Upper && tt_entry_probed.score <= alpha))
+    || (bound == Bound::Lower && tt_entry.score >= beta)
+    || (bound == Bound::Upper && tt_entry.score <= alpha))
     {
-        return tt_entry_probed.adjusted_score(ply);
+        return tt_entry.adjusted_score(ply);
     }
 
     let pv_node: bool = (beta as i32 - alpha as i32) > 1 || ply == 0;
-    let eval = evaluate(search_data.board.state.color, &search_data.board.state.accumulator);
 
-    if !pv_node
-    {
-        // RFP (Reverse futility pruning)
-        if depth <= 5 && eval >= beta + depth * 50 {
-            return eval;
-        }
+    if eval == EVAL_NONE {
+        eval = search_data.board.evaluate();
     }
 
-    let tt_move = if tt_hit { search_data.tt.entries[tt_entry_index].get_move() }
-                  else {MOVE_NONE};
+    // RFP (Reverse futility pruning)
+    if !pv_node && !singular && depth <= 6 
+    && eval >= beta + depth * 50 {
+        return eval;
+    }
+
+    let tt_move = if tt_hit { tt_entry.get_move() } else { MOVE_NONE };
 
     // IIR (Internal iterative reduction)
     if tt_move == MOVE_NONE && depth >= 3 {
@@ -234,6 +238,9 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
     {
         let (mov, move_score) = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
 
+        // Don't search the excluded TT move in a singular search
+        if mov == tt_move && singular { continue; }
+
         if ply > 0 && best_score > -MIN_WIN_SCORE
         {
             // LMP (Late move pruning)
@@ -242,19 +249,37 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
             }
 
             // FP (Futility pruning)
-            if depth <= 5 && alpha < MIN_WIN_SCORE && i >= 3
+            if depth <= 6 && alpha < MIN_WIN_SCORE && i >= 3
             && eval + 40 + depth * 20 <= alpha {
                 break;
             }
         }
-        
+                
+        // SE (Singular extensions)
+        let mut extension: i16 = 0;
+        if mov == tt_move && !singular 
+        && !pv_node && depth >= 6
+        && tt_entry.score.abs() < MIN_WIN_SCORE
+        && tt_entry.depth as i16 >= depth - 3
+        && bound != Bound::Upper
+        {
+            let singular_beta: i16 = (tt_entry.score - depth).max(-INFINITY);
+            let singular_score = pvs(search_data, (depth - 1) / 2, ply, 
+                                     singular_beta - 1, singular_beta, eval, double_extensions);
+
+            if singular_score < singular_beta {
+                extension = 1;
+            }
+        }
+
         search_data.board.make_move(mov);
         search_data.nodes += 1;
         let nodes_before = search_data.nodes;
 
         // PVS (Principal variation search)
         let score = if i == 0 {
-            -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
+            -pvs(search_data, depth - 1 + extension, ply + 1,
+                 -beta, -alpha, EVAL_NONE, double_extensions)
         } else {
             // LMR (Late move reductions)
             let lmr: i16 = if depth >= 3 && i >= 2 {
@@ -265,9 +290,11 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
                 0
             };
 
-            let null_window_score = -pvs(search_data, depth - 1 - lmr, ply + 1, -alpha - 1, -alpha);
+            let null_window_score = -pvs(search_data, depth - 1 - lmr, ply + 1, 
+                                         -alpha - 1, -alpha, EVAL_NONE, double_extensions);
+
             if null_window_score > alpha && (null_window_score < beta || lmr > 0) {
-                -pvs(search_data, depth - 1, ply + 1, -beta, -alpha)
+                -pvs(search_data, depth - 1, ply + 1, -beta, -alpha, EVAL_NONE, double_extensions)
             } else {
                 null_window_score
             }
@@ -303,21 +330,30 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, mut alpha: i16, b
         break; // Fail high / beta cutoff
     }
 
-    let tt_entry: &mut TTEntry = &mut search_data.tt.entries[tt_entry_index];
-    tt_entry.zobrist_hash = search_data.board.state.zobrist_hash;
-    tt_entry.depth = depth as u8;
+    if !singular
+    {
+        let tt_entry: &mut TTEntry = &mut search_data.tt.entries[tt_entry_index];
+        tt_entry.zobrist_hash = search_data.board.state.zobrist_hash;
+        tt_entry.depth = depth as u8;
 
-    tt_entry.score = if best_score >= MIN_WIN_SCORE { best_score + ply }
-                     else if best_score <= -MIN_WIN_SCORE { best_score - ply }
-                     else { best_score };
+        tt_entry.score = if best_score >= MIN_WIN_SCORE 
+                             { best_score + ply }
+                         else if best_score <= -MIN_WIN_SCORE 
+                             { best_score - ply }
+                         else 
+                             { best_score };
 
-    if best_move != MOVE_NONE {
-        tt_entry.set_move(best_move);
+        if best_move != MOVE_NONE {
+            tt_entry.set_move(best_move);
+        }
+
+        tt_entry.set_bound(if best_score <= original_alpha 
+                               { Bound::Upper }
+                           else if best_score >= beta
+                               { Bound::Lower }
+                           else 
+                               { Bound::Exact });
     }
-
-    tt_entry.set_bound(if best_score <= original_alpha { Bound::Upper }
-                       else if best_score >= beta { Bound::Lower }
-                       else { Bound::Exact });
 
     best_score
 }

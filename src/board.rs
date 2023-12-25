@@ -377,4 +377,8 @@ impl Board
         (ADJACENT_SQUARES_TABLE[sq as usize] & self.them()).count_ones() as u8
     }
 
+    pub fn evaluate(&self) -> i16 {
+        evaluate(self.state.color, &self.state.accumulator)
+    }
+
 }

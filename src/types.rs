@@ -74,6 +74,7 @@ pub const EMPTY_MOVES_ARRAY: MovesArray = [MOVE_NONE; 256];
 
 pub const INFINITY: i16 = 32000;
 pub const MIN_WIN_SCORE: i16 = 31000;
+pub const EVAL_NONE: i16 = INFINITY;
 
 /*
 42 43 44 45 46 47 48

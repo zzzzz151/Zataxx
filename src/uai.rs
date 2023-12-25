@@ -2,7 +2,6 @@ use std::io;
 use std::time::Instant;
 use crate::types::*;
 use crate::utils::*;
-use crate::nnue::*;
 use crate::board::*;
 use crate::perft::*;
 use crate::tt::*;
@@ -46,8 +45,7 @@ pub fn uai_loop(search_data: &mut SearchData)
                 search_data.board.print(); 
             }
             "eval" | "evaluate" | "evaluation" => {
-                println!("eval {} cp", 
-                         evaluate(search_data.board.state.color, &search_data.board.state.accumulator));
+                println!("eval {}", search_data.board.evaluate());
             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
