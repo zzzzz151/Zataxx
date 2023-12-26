@@ -32,6 +32,7 @@ impl BoardState
     }
 }
 
+#[derive(Clone)]
 pub struct Board 
 {
     pub state: BoardState,

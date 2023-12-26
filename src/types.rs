@@ -62,7 +62,7 @@ impl ToString for GameResult {
 }
 
 pub const START_FEN: &str = "r5b/7/7/7/7/7/b5r r 0 1";
-pub const START_FEN2: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
+pub const START_FEN_4_BLOCKERS: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
 
 pub type Move = [Square; 2];
 pub const FROM: usize = 0;
