@@ -34,24 +34,23 @@ The exe will be in target/release.
 - Self-play data
 - Screlu activation
 
-### Search framework
+### Search
 - Iterative deepening
 - Principal variation search with fail-soft Negamax
 - Transposition table
+- Alpha-beta pruning
+- Reverse futility pruning
+- Late move pruning
+- Futility pruning
+- Multicut
+- Internal iterative reduction
+- Late move reductions
+- Singular extension, negative extension
 
 ### Move ordering
 - TT move
 - Bonus for single moves
 - Most captures
-
-### Pruning
-- Alpha-beta pruning
-- Reverse futility pruning
-- Late move pruning
-- Futility pruning
-
-### Reductions
-- Late move reductions
 
 ### Time management
 - Soft and hard limits
