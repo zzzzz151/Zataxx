@@ -1,7 +1,7 @@
 use crate::types::*;
 use crate::utils::*;
 
-pub const HIDDEN_LAYER_SIZE: usize = 128;
+pub const HIDDEN_LAYER_SIZE: usize = 256;
 pub const SCALE: i32 = 400;
 pub const QA: i32 = 255;
 pub const QB: i32 = 64;
@@ -14,7 +14,7 @@ pub struct Net {
     output_bias: i16
 }
 
-static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net1.nnue")) };
+static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net2.nnue")) };
 
 #[derive(Clone, Copy)]
 #[repr(C, align(64))]

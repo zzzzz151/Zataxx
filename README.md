@@ -30,7 +30,7 @@ The exe will be in target/release.
 - Zobrist hashing
 
 ### NNUE evaluation
-- 147->128x2->1
+- 147->256x2->1
 - Self-play data
 - Screlu activation
 
