@@ -14,8 +14,10 @@ pub fn datagen()
 {    
     const SOFT_NODES: u64 = 5000;
     const HARD_NODES: u64 = 10_000_000;
-    const OPENING_SCORE_THRESHOLD: i16 = 25;
-    const ADJ_SCORE: i16 = 200;
+    const OPENING_SCORE_THRESHOLD: i16 = 500;
+    const ADJ_SCORE: i16 = 2500;
+    const MIN_PLIES: u8 = 16;
+    const MAX_PLIES: u8 = 21;
 
     // Create 'data' folder
     let _ = fs::create_dir_all("data");
@@ -55,7 +57,7 @@ pub fn datagen()
         map = 1 - map;
 
         // Apply random opening
-        let plies: u8 = rng.gen_range(8..=15) as u8;
+        let plies: u8 = rng.gen_range(MIN_PLIES..=MAX_PLIES) as u8;
         loop {
             let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
             let num_moves = search_data.board.moves(&mut moves);
