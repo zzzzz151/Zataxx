@@ -197,7 +197,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
 
     // RFP (Reverse futility pruning)
     if !pv_node && !singular && depth <= 6 
-    && eval >= beta + depth * 50 {
+    && eval >= beta + depth * 75 {
         return eval;
     }
 
@@ -249,7 +249,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
 
             // FP (Futility pruning)
             if depth <= 6 && alpha < MIN_WIN_SCORE && i >= 3
-            && eval + 40 + depth * 20 <= alpha {
+            && eval + 160 + depth * 80 <= alpha {
                 break;
             }
         }

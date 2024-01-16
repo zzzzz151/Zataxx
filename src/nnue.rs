@@ -14,7 +14,7 @@ pub struct Net {
     output_bias: i16
 }
 
-static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net2.nnue")) };
+static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net3.nnue")) };
 
 #[derive(Clone, Copy)]
 #[repr(C, align(64))]
