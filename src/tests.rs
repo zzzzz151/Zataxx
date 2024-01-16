@@ -3,6 +3,16 @@ mod tests {
     use crate::Board;
     use crate::GameResult;
     use crate::perft::*;
+    use crate::ataxx_move::*;
+
+    #[test]
+    fn test_move() {
+        let mov1 = AtaxxMove::double(3, 5);
+        let mov2 = AtaxxMove::double(3, 5);
+        let mov3 = AtaxxMove::double(3, 6);
+        assert!(mov1 == mov2);
+        assert!(mov1 != mov3);
+    }
     
     #[test]
     fn test_board_game_over() {
@@ -32,7 +42,7 @@ mod tests {
         ];
 
         for test in game_over_tests.iter() {
-            let mut board: Board = Board::new(test.0);
+            let mut board: Board = Board::new(test.0, true);
             if test.1 == false {
                 assert!(board.get_game_result() == GameResult::None);
             }
@@ -72,7 +82,7 @@ mod tests {
         ];
     
         for test in tests.iter() {
-            let mut board: Board = Board::new(test.0);
+            let mut board: Board = Board::new(test.0, true);
             assert_eq!(board.get_game_result(), test.1);
         }
     }
@@ -107,14 +117,13 @@ mod tests {
         for test_entry in &PERFT_TESTS 
         {
             let (fen, nodes_per_depth) = test_entry;
-            let mut board: Board = Board::new(fen);
 
             for depth in 0..7 {
                 let expected_nodes: i32 = nodes_per_depth[depth];
                 if expected_nodes == -1 {
                     continue;
                 }
-                let our_nodes: u64 = perft(&mut board, depth as u8);
+                let our_nodes: u64 = perft_bench(fen, depth as u8);
                 assert_eq!(our_nodes as i32, expected_nodes);
             }
     }

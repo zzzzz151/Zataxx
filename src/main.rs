@@ -2,6 +2,7 @@ mod types;
 mod utils;
 mod tables;
 mod nnue;
+mod ataxx_move;
 mod board;
 mod perft;
 mod tt;
@@ -36,6 +37,7 @@ fn main() {
         }
     }
 
-    let mut search_data = SearchData::new(Board::new(START_FEN), 100, U64_MAX, U64_MAX, U64_MAX);
+    let mut search_data = SearchData::new(Board::new(START_FEN, false), 
+                                          100, U64_MAX, U64_MAX, U64_MAX);
     uai_loop(&mut search_data);
 }

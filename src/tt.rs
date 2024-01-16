@@ -3,6 +3,7 @@
 use std::mem;
 use crate::types::*;
 //use crate::utils::*;
+use crate::ataxx_move::*;
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
@@ -20,46 +21,43 @@ pub struct TTEntry {
     pub zobrist_hash: u64,
     pub depth: u8,
     pub score: i16,
-    move_and_bound: u16, // first 12 bits move, last 2 bits bound
+    move_and_bound: u16, // lowest 12 bits move, highest 2 bits bound
 }
 
 impl TTEntry
 {
-    pub fn adjusted_score(&self, ply: i16) -> i16
+    pub fn adjusted_score(&self, ply: u8) -> i16
     {
-        if self.score >= MIN_WIN_SCORE { 
-            return self.score - ply;
+        if self.score >= MIN_WIN_SCORE as i16 { 
+            return self.score - ply as i16;
         }
-        if self.score <= -MIN_WIN_SCORE { 
-            return self.score + ply;
+        if self.score <= -MIN_WIN_SCORE as i16 { 
+            return self.score + ply as i16;
         }
         self.score
     }
 
-    pub fn get_move(&self) -> Move {
-        [((self.move_and_bound & 0b1111_1100_0000_0000) >> 10) as Square, 
-         ((self.move_and_bound & 0b0000_0011_1111_0000) >> 4) as Square]
+    pub fn get_move(&self) -> AtaxxMove {
+        AtaxxMove::from_u16(self.move_and_bound & 0b0000_1111_1111_1111)
     }
 
     pub fn get_bound(&self) -> Bound {
-        let bound: Bound = unsafe { mem::transmute((self.move_and_bound & 0b11) as u8) };
+        let bound: Bound = unsafe { mem::transmute((self.move_and_bound >> 14) as u8) };
         bound 
     }
 
-    pub fn set_move(&mut self, mov: Move) {
-        self.move_and_bound &= 0b0000_0000_0000_0011;
-        self.move_and_bound |= (mov[FROM] as u16) << 10;
-        self.move_and_bound |= (mov[TO] as u16) << 4;
+    pub fn set_move(&mut self, mov: AtaxxMove) {
+        self.move_and_bound &= 0b1100_0000_0000_0000;
+        self.move_and_bound |= mov.to_u16();
     }
 
     pub fn set_bound(&mut self, bound: Bound) {
-        self.move_and_bound = (self.move_and_bound & 0b1111_1111_1111_1100) | bound as u16;
+        self.move_and_bound &= 0b0000_1111_1111_1111;
+        self.move_and_bound |= (bound as u16) << 14;
     }
 
-    pub fn set_move_and_bound(&mut self, mov: Move, bound: Bound) {
-        let from: u16 = mov[FROM] as u16;
-        let to: u16 = mov[TO] as u16;
-        self.move_and_bound = (from << 10) | (to << 4) | (bound as u16);
+    pub fn set_move_and_bound(&mut self, mov: AtaxxMove, bound: Bound) {
+        self.move_and_bound = mov.to_u16() | ((bound as u16) << 14);
     }
 }
 
@@ -76,8 +74,7 @@ impl TT
         let num_entries: usize = (size_mb * 1024 * 1024 / std::mem::size_of::<TTEntry>()) as usize;
         println!("TT size: {} MB ({} entries)", size_mb, num_entries);
         
-        TT 
-        {
+        TT {
             entries: vec![TTEntry {
                 zobrist_hash: 0,
                 depth: 0,

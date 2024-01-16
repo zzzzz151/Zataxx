@@ -1,5 +1,6 @@
 use crate::types::*;
 use crate::utils::*;
+use crate::ataxx_move::*;
 use crate::tables::*;
 use crate::nnue::*;
 
@@ -11,7 +12,7 @@ pub struct BoardState
     pub blocked: u64,
     pub plies_since_single: u16,
     pub current_move: u16,
-    pub mov: Move,
+    pub mov: AtaxxMove,
     pub zobrist_hash: u64,
     pub accumulator: Accumulator
 }
@@ -36,25 +37,27 @@ impl BoardState
 pub struct Board 
 {
     pub state: BoardState,
-    pub states: Vec<BoardState>
+    pub states: Vec<BoardState>,
+    pub perft: bool
 }
 
 impl Board
 {
-    pub fn default() -> Self {
+    pub fn default(perft: bool) -> Self {
         Self {
             state: BoardState::default(),
-            states: Vec::with_capacity(256)
+            states: Vec::with_capacity(256),
+            perft: perft
         }
     }
 
-    pub fn new(fen: &str) -> Self
+    pub fn new(fen: &str, perft: bool) -> Self
     {
         // Fen: pieces stm halfmove fullmove 
         // r5b/7/7/7/7/7/b5r r 0 1
         // r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1
 
-        let mut board: Board = Board::default();
+        let mut board: Board = Board::default(perft);
         let fen = fen.trim().to_string();
         let fen_split: Vec<&str> = fen.split(' ').map(str::trim).collect();
         let fen_rows: Vec<&str> = fen_split[0].split('/').map(str::trim).collect();
@@ -139,14 +142,18 @@ impl Board
     {
         self.state.bitboards[color as usize] |= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
-        self.state.accumulator.update(color, sq, true);
+        if !self.perft {
+            self.state.accumulator.update(color, sq, true);
+        }
     }
 
     pub fn remove_piece(&mut self, color: Color, sq: Square)
     {
         self.state.bitboards[color as usize] ^= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
-        self.state.accumulator.update(color, sq, false);
+        if !self.perft {
+            self.state.accumulator.update(color, sq, false);
+        }
     }
 
     pub fn print(&self) {
@@ -210,10 +217,9 @@ impl Board
         self.state.zobrist_hash ^= ZOBRIST_COLOR[self.state.color as usize];
     }
 
-    pub fn make_move(&mut self, mov: Move)
+    pub fn make_move(&mut self, mov: AtaxxMove)
     {
         assert!(mov != MOVE_NONE);
-
         self.states.push(self.state);
 
         if self.state.color == Color::Blue {
@@ -227,15 +233,15 @@ impl Board
         }
 
         // create piece on destination
-        self.place_piece(self.state.color, mov[TO]);
+        self.place_piece(self.state.color, mov.to);
 
-        // if destination is not adjacent to source, remove piece at source
-        if mov[FROM] != mov[TO] {
-            self.remove_piece(self.state.color, mov[FROM]);
+        // if not a single, remove piece at source
+        if mov.is_double() {
+            self.remove_piece(self.state.color, mov.from);
         }
 
         // Capture enemy pieces adjacent to destination
-        let adjacent_squares: u64 = ADJACENT_SQUARES_TABLE[mov[TO] as usize];
+        let adjacent_squares: u64 = ADJACENT_SQUARES_TABLE[mov.to as usize];
         let opp_stm = opp_color(self.state.color);
         let mut enemies_captured = adjacent_squares & self.state.bitboards[opp_stm as usize];
         while enemies_captured > 0
@@ -245,7 +251,7 @@ impl Board
             self.place_piece(self.state.color, sq_captured);
         }
 
-        if mov[FROM] == mov[TO] {
+        if mov.is_single() {
             self.state.plies_since_single = 0;
         }
         else {
@@ -262,45 +268,38 @@ impl Board
         self.states.pop();
     }
 
-    pub fn moves(&mut self, moves: &mut MovesArray) -> u8
+    pub fn moves(&mut self, moves_list: &mut MovesList)
     {
-        let mut num_moves: u8 = 0;
+        moves_list.num_moves = 0;
         let mut us = self.us();
         let mut adjacent_target_squares: u64 = 0;
 
         while us > 0
         {
-            let from: Square = pop_lsb(&mut us) as Square;
+            let from = pop_lsb(&mut us) as Square;
             adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
             let mut leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]
                                         & !self.occupancy()
                                         & !self.state.blocked;
+
             while leap_squares > 0 {
-                let to: Square = pop_lsb(&mut leap_squares) as Square;
-                moves[num_moves as usize] = [from, to];
-                num_moves += 1;
+                let to = pop_lsb(&mut leap_squares) as Square;
+                moves_list.add(AtaxxMove::double(from, to));
             }
         }
 
         adjacent_target_squares &= !self.occupancy() & !self.state.blocked;
         while adjacent_target_squares > 0
         {
-            let to: Square = pop_lsb(&mut adjacent_target_squares);
-            moves[num_moves as usize] = [to, to];
-            num_moves += 1;
+            let sq = pop_lsb(&mut adjacent_target_squares) as Square;
+            moves_list.add(AtaxxMove::single(sq));
         }
 
-        if num_moves == 0
+        if moves_list.num_moves == 0
+        && !(self.states.len() > 0 && self.states.last().unwrap().mov == MOVE_PASS)
         {
-            if self.states.len() > 0 && self.states.last().unwrap().mov == MOVE_PASS {
-                return 0;
-            }
-
-            moves[0] = MOVE_PASS;
-            return 1;
+            moves_list.add(MOVE_PASS);
         }
-
-        return num_moves;
     }
     
     pub fn get_game_result(&mut self) -> GameResult
@@ -378,7 +377,7 @@ impl Board
         (ADJACENT_SQUARES_TABLE[sq as usize] & self.them()).count_ones() as u8
     }
 
-    pub fn evaluate(&self) -> i16 {
+    pub fn evaluate(&self) -> i32 {
         evaluate(self.state.color, &self.state.accumulator)
     }
 

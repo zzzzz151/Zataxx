@@ -1,7 +1,8 @@
 use std::io;
 use std::time::Instant;
 use crate::types::*;
-use crate::utils::*;
+//use crate::utils::*;
+use crate::ataxx_move::*;
 use crate::board::*;
 use crate::perft::*;
 use crate::tt::*;
@@ -49,12 +50,11 @@ pub fn uai_loop(search_data: &mut SearchData)
             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                let nodes: u64 = perft(&mut search_data.board, depth);
-                println!("perft depth {} nodes {}", depth, nodes);
+                perft_bench(&search_data.board.fen(), depth);
             }
-            "perftsplit" => { 
+            "perftsplit" | "splitperft" => { 
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                perft_split(&mut search_data.board, depth);
+                perft_split(&search_data.board.fen(), depth);
             }
             "gameresult" => {
                 println!("{}", search_data.board.get_game_result().to_string());
@@ -90,7 +90,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
 {
     // apply fen
     if tokens[1] == "startpos" {
-       search_data.board = Board::new(START_FEN);
+       search_data.board = Board::new(START_FEN, false);
     }
     else if tokens[1] == "fen"
     {
@@ -103,7 +103,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
             fen.push(' ');
         }
         fen.pop(); // remove last whitespace
-        search_data.board = Board::new(&fen);
+        search_data.board = Board::new(&fen, false);
     }
 
     // apply moves if any
@@ -111,7 +111,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
     {
         if token == &"moves" {
             for j in (i+3)..tokens.len() {
-                search_data.board.make_move(str_to_move(tokens[j as usize]));
+                search_data.board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
             }
             break;
         }
@@ -146,5 +146,5 @@ pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
 
     search(search_data, true);
     assert!(search_data.best_move_root != MOVE_NONE);
-    println!("bestmove {}", move_to_str(search_data.best_move_root));
+    println!("bestmove {}", search_data.best_move_root);
 }

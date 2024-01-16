@@ -7,6 +7,7 @@ use std::io::prelude::*;
 use std::fs;
 use crate::types::*;
 use crate::utils::*;
+use crate::ataxx_move::*;
 use crate::board::*;
 use crate::search::*;
 
@@ -14,8 +15,8 @@ pub fn datagen()
 {    
     const SOFT_NODES: u64 = 5000;
     const HARD_NODES: u64 = 10_000_000;
-    const OPENING_SCORE_THRESHOLD: i16 = 500;
-    const ADJ_SCORE: i16 = 2500;
+    const OPENING_SCORE_THRESHOLD: i32 = 200;
+    const ADJ_SCORE: i32 = 2500;
     const MIN_PLIES: u8 = 16;
     const MAX_PLIES: u8 = 21;
 
@@ -38,10 +39,12 @@ pub fn datagen()
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
-    let start_board: Board = Board::new(START_FEN);
-    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS);
+    let start_board: Board = Board::new(START_FEN, false);
+    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS, false);
     let mut map: u8 = 0; // map=0 => no blockers, map=1 => 4 blockers
-    let mut search_data = SearchData::new(Board::default(), 100, U64_MAX, SOFT_NODES, HARD_NODES);
+
+    let mut search_data = SearchData::new(Board::default(false), 
+                                          100, U64_MAX, SOFT_NODES, HARD_NODES);
 
     let mut rng = rand::thread_rng();
     let mut positions_written: u64 = 0;
@@ -59,10 +62,11 @@ pub fn datagen()
         // Apply random opening
         let plies: u8 = rng.gen_range(MIN_PLIES..=MAX_PLIES) as u8;
         loop {
-            let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
-            let num_moves = search_data.board.moves(&mut moves);
-            assert!(num_moves > 0);
-            let random_index = rng.gen_range(0..num_moves);
+            // Generate moves and make a random one
+            let mut moves: MovesList = MovesList::default();
+            search_data.board.moves(&mut moves);
+            assert!(moves.num_moves > 0);
+            let random_index = rng.gen_range(0..moves.num_moves);
             search_data.board.make_move(moves[random_index as usize]);
 
             if search_data.board.get_game_result() != GameResult::None || moves[0] == MOVE_PASS
@@ -162,9 +166,10 @@ pub fn datagen_openings()
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
-    let start_board: Board = Board::new(START_FEN);
-    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS);
-    let mut search_data = SearchData::new(Board::default(), 100, U64_MAX, 1_000_000, 100_000_000);
+    let start_board: Board = Board::new(START_FEN, false);
+    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS, false);
+    let mut search_data = SearchData::new(Board::default(false), 
+                                          100, U64_MAX, 1_000_000, 100_000_000);
     let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(1024);
     let mut rng = rand::thread_rng();
     let ply: usize = 8;
@@ -176,10 +181,11 @@ pub fn datagen_openings()
 
         let mut skip = false;
         for _i in 0..ply {
-            let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
-            let num_moves = search_data.board.moves(&mut moves);
-            assert!(num_moves > 0);
-            let random_index = rng.gen_range(0..num_moves) as usize;
+            // Generate moves and make a random one
+            let mut moves: MovesList = MovesList::default();
+            search_data.board.moves(&mut moves);
+            assert!(moves.num_moves > 0);
+            let random_index = rng.gen_range(0..moves.num_moves) as usize;
             search_data.board.make_move(moves[random_index]);
 
             if search_data.board.get_game_result() != GameResult::None 
@@ -196,7 +202,7 @@ pub fn datagen_openings()
         search_data.tt.reset();
         search_data.killers = [MOVE_NONE; 256];
         search_data.start_time = Instant::now();
-        let score: i16 = search(&mut search_data, false).1;
+        let score = search(&mut search_data, false).1;
 
         if score.abs() <= 1 {
             let line: String = search_data.board.fen() + "\n";

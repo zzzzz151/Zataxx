@@ -2,23 +2,25 @@ use std::time::Instant;
 use crate::tables::*;
 use crate::types::*;
 use crate::utils::*;
+use crate::ataxx_move::*;
 use crate::board::*;
 use crate::tt::*;
 
 pub struct SearchData {
     pub board: Board,
     pub max_depth: u8,
-    pub best_move_root: Move,
+    pub max_ply_reached: u8,
+    pub best_move_root: AtaxxMove,
     pub start_time: Instant,
     pub milliseconds: u64,
     pub time_is_up: bool,
     pub nodes: u64,
-    pub root_move_nodes: [[u64; 49]; 49],
+    pub root_move_nodes: [u64; 1usize << 13],
     pub soft_nodes: u64,
     pub hard_nodes: u64,
     pub tt: TT,
     pub lmr_table: [[u8; 256]; 256],
-    pub killers: [Move; 256],
+    pub killers: [AtaxxMove; 256],
 }
 
 impl SearchData
@@ -27,12 +29,13 @@ impl SearchData
         Self {
             board: board,
             max_depth: max_depth,
+            max_ply_reached: 0,
             best_move_root: MOVE_NONE,
             start_time: Instant::now(),
             milliseconds: milliseconds,
             time_is_up: false,
             nodes: 0,
-            root_move_nodes: [[0; 49]; 49],
+            root_move_nodes: [0; 1usize << 13],
             soft_nodes: soft_nodes,
             hard_nodes: hard_nodes,
             tt: TT::new(DEFAULT_TT_SIZE_MB),
@@ -60,13 +63,12 @@ impl SearchData
         }
 
         let move_nodes_fraction: f64 = if self.best_move_root == MOVE_PASS { 
-                                           1.0 
-                                       } else {
-                                           let best_move_nodes = self.root_move_nodes
-                                                                 [self.best_move_root[FROM] as usize]
-                                                                 [self.best_move_root[TO] as usize];
-                                           best_move_nodes as f64 / self.nodes.max(1) as f64
-                                       };
+            1.0 
+        } 
+        else {
+            let best_move_nodes = self.root_move_nodes[self.best_move_root.to_u16() as usize];
+            best_move_nodes as f64 / self.nodes.max(1) as f64
+        };
 
         let soft_time_scale = (0.5 + 1.0 - move_nodes_fraction) * 1.5;
 
@@ -75,30 +77,32 @@ impl SearchData
     }
 }
 
-pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
+pub fn search(search_data: &mut SearchData, print_info: bool) -> (AtaxxMove, i32)
 {
     search_data.best_move_root = MOVE_NONE;
     search_data.time_is_up = false;
     search_data.nodes = 0;
-    search_data.root_move_nodes = [[0; 49]; 49];
+    search_data.root_move_nodes = [0; 1usize << 13];
 
-    let mut score: i16 = 0;
+    let mut score: i32 = 0;
 
     // ID (Iterative deepening)
     for iteration_depth in 1..=search_data.max_depth 
     {
-        let iteration_score = pvs(search_data, iteration_depth as i16, 0, -INFINITY, INFINITY, EVAL_NONE);
+        search_data.max_ply_reached = 0;
+        let iteration_score = pvs(search_data, iteration_depth as i32, 0, -INFINITY, INFINITY, EVAL_NONE);
 
         if search_data.is_hard_time_up() { break; }
 
         if print_info {
-            println!("info depth {} score {} time {} nodes {} nps {} pv {}",
+            println!("info depth {} seldepth {} score {} time {} nodes {} nps {} pv {}",
                     iteration_depth, 
+                    search_data.max_ply_reached,
                     iteration_score,
                     milliseconds_elapsed(search_data.start_time), 
                     search_data.nodes,
                     search_data.nodes * 1000 / milliseconds_elapsed(search_data.start_time).max(1) as u64,
-                    move_to_str(search_data.best_move_root));
+                    search_data.best_move_root);
         }
         
         score = iteration_score;
@@ -111,12 +115,12 @@ pub fn search(search_data: &mut SearchData, print_info: bool) -> (Move, i16)
 }
 
 /*
-fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i16) -> i16
+fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i32) -> i32
 {
-    let mut delta: i16 = 80;
-    let mut alpha: i16 = (score - delta).max(-INFINITY);
-    let mut beta: i16 = (score + delta).min(INFINITY);
-    let mut depth: i16 = iteration_depth as i16;
+    let mut delta: i32 = 80;
+    let mut alpha: i32 = (score - delta).max(-INFINITY);
+    let mut beta: i32 = (score + delta).min(INFINITY);
+    let mut depth: i32 = iteration_depth as i32;
 
     loop
     {
@@ -131,7 +135,7 @@ fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i16)
         else if score <= alpha {
             beta = (alpha + beta) / 2;
             alpha = (alpha - delta).max(-INFINITY);
-            depth = iteration_depth as i16;
+            depth = iteration_depth as i32;
         }
         else {
             break;
@@ -144,10 +148,15 @@ fn aspiration(search_data: &mut SearchData, iteration_depth: u8, mut score: i16)
 }
 */
 
-fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16, 
-       mut alpha: i16, beta: i16, mut eval: i16) -> i16
+fn pvs(search_data: &mut SearchData, mut depth: i32, ply: i32, 
+       mut alpha: i32, beta: i32, mut eval: i32) -> i32
 {
     if search_data.is_hard_time_up() { return 0; }
+
+    // Update seldepth
+    if ply as u8 > search_data.max_ply_reached {
+        search_data.max_ply_reached = ply as u8;
+    }
 
     let singular: bool = eval != EVAL_NONE;
 
@@ -157,11 +166,19 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
         if game_result == GameResult::Draw {
             return 0;
         }
-        else if game_result == GameResult::WinRed {
-            return if search_data.board.state.color == Color::Red {INFINITY - ply} else {-INFINITY + ply};
+        else if game_result == GameResult::WinRed 
+        {
+            return if search_data.board.state.color == Color::Red 
+                {INFINITY - ply} 
+            else 
+                {-INFINITY + ply};
         }
-        else if game_result == GameResult::WinBlue {
-            return if search_data.board.state.color == Color::Blue {INFINITY - ply} else {-INFINITY + ply};
+        else if game_result == GameResult::WinBlue 
+        {
+            return if search_data.board.state.color == Color::Blue 
+                {INFINITY - ply} 
+            else 
+                {-INFINITY + ply};
         }
     }
 
@@ -170,7 +187,7 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
     }
 
     if depth > search_data.max_depth.into() { 
-        depth = search_data.max_depth as i16; 
+        depth = search_data.max_depth as i32; 
     }
 
     // Probe TT
@@ -183,14 +200,13 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
     if ply > 0 && !singular && tt_hit 
     && tt_entry.depth >= (depth as u8)
     && (bound == Bound::Exact
-    || (bound == Bound::Lower && tt_entry.score >= beta)
-    || (bound == Bound::Upper && tt_entry.score <= alpha))
+    || (bound == Bound::Lower && tt_entry.score >= beta as i16)
+    || (bound == Bound::Upper && tt_entry.score <= alpha as i16))
     {
-        return tt_entry.adjusted_score(ply);
+        return tt_entry.adjusted_score(ply as u8) as i32;
     }
 
-    let pv_node: bool = (beta as i32 - alpha as i32) > 1 || ply == 0;
-
+    let pv_node: bool = beta - alpha > 1;
     if eval == EVAL_NONE {
         eval = search_data.board.evaluate();
     }
@@ -209,33 +225,33 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
     }
 
     // Generate moves
-    let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
-    let num_moves = search_data.board.moves(&mut moves);
-    assert!(num_moves > 0);
+    let mut moves: MovesList = MovesList::default();
+    search_data.board.moves(&mut moves);
+    assert!(moves.num_moves > 0);
 
     // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];
-    if num_moves > 1 {
-        for i in 0..(num_moves as usize) { 
-            let mov: Move = moves[i];
+    if moves.num_moves > 1 {
+        for i in 0..(moves.num_moves as usize) { 
+            let mov: AtaxxMove = moves[i];
             if mov == tt_move {
                 moves_scores[i] = 255;
             }
             else {
-                moves_scores[i] = (mov == search_data.killers[ply as usize]) as u8 * 2;
-                moves_scores[i] += (mov[TO] == mov[FROM]) as u8;
-                moves_scores[i] += search_data.board.num_adjacent_enemies(mov[TO]);
+                moves_scores[i] = mov.is_single() as u8;
+                moves_scores[i] += search_data.board.num_adjacent_enemies(mov.to);
+                moves_scores[i] += (mov == search_data.killers[ply as usize]) as u8 * 2;
             }
         }
     }
 
-    let mut best_score: i16 = -INFINITY;
-    let mut best_move: Move = MOVE_NONE;
+    let mut best_score: i32 = -INFINITY;
+    let mut best_move: AtaxxMove = MOVE_NONE;
     let original_alpha = alpha;
 
-    for i in 0..num_moves
+    for i in 0..(moves.num_moves as usize)
     {
-        let (mov, move_score) = incremental_sort(&mut moves, num_moves, &mut moves_scores, i as usize);
+        let (mov, move_score) = incremental_sort(&mut moves, &mut moves_scores, i);
 
         // Don't search the excluded TT move in a singular search
         if mov == tt_move && singular { continue; }
@@ -255,14 +271,14 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
         }
                 
         // SE (Singular extensions)
-        let mut extension: i16 = 0;
+        let mut extension: i32 = 0;
         if mov == tt_move && !singular 
         && !pv_node && depth >= 6
-        && tt_entry.score.abs() < MIN_WIN_SCORE
-        && tt_entry.depth as i16 >= depth - 3
+        && tt_entry.score.abs() < MIN_WIN_SCORE as i16
+        && tt_entry.depth as i32 >= depth - 3
         && bound != Bound::Upper
         {
-            let singular_beta: i16 = (tt_entry.score - depth).max(-INFINITY);
+            let singular_beta: i32 = (tt_entry.score as i32 - depth).max(-INFINITY);
             let singular_score = pvs(search_data, (depth - 1) / 2, ply, 
                                      singular_beta - 1, singular_beta, eval);
 
@@ -274,14 +290,14 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
                 return singular_beta;
             }
             // Negative extenesion
-            else if tt_entry.score >= beta {
+            else if tt_entry.score >= beta as i16 {
                 extension = -1;
             }
         }
 
         search_data.board.make_move(mov);
-        search_data.nodes += 1;
         let nodes_before = search_data.nodes;
+        search_data.nodes += 1;
 
         // PVS (Principal variation search)
         let score = if i == 0 {
@@ -289,9 +305,9 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
                  -beta, -alpha, EVAL_NONE)
         } else {
             // LMR (Late move reductions)
-            let lmr: i16 = if depth >= 3 && i >= 2 {
-                let mut value: i16 = search_data.lmr_table[depth as usize][i as usize] as i16;
-                value -= pv_node as i16; // reduce pv nodes less
+            let lmr: i32 = if depth >= 3 && i >= 2 {
+                let mut value: i32 = search_data.lmr_table[depth as usize][i as usize] as i32;
+                value -= pv_node as i32; // reduce pv nodes less
                 clamp(value, 0, depth - 2) // dont extend and dont reduce into eval
             } else {
                 0
@@ -310,13 +326,11 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
         search_data.board.undo_move();
 
         if ply == 0 && mov != MOVE_PASS {
-            search_data.root_move_nodes[mov[FROM] as usize][mov[TO] as usize] 
+            search_data.root_move_nodes[mov.to_u16() as usize]
                 += search_data.nodes - nodes_before;
         }
 
-        if search_data.is_hard_time_up() {
-            return 0; 
-        }
+        if search_data.is_hard_time_up() { return 0; }
 
         if score > best_score { best_score = score; }
 
@@ -344,11 +358,11 @@ fn pvs(search_data: &mut SearchData, mut depth: i16, ply: i16,
         tt_entry.depth = depth as u8;
 
         tt_entry.score = if best_score >= MIN_WIN_SCORE 
-                             { best_score + ply }
-                         else if best_score <= -MIN_WIN_SCORE 
-                             { best_score - ply }
-                         else 
-                             { best_score };
+            { (best_score + ply) as i16 }
+        else if best_score <= -MIN_WIN_SCORE 
+            { (best_score - ply) as i16 }
+        else 
+            { best_score as i16 };
 
         if best_move != MOVE_NONE {
             tt_entry.set_move(best_move);

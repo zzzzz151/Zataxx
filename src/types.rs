@@ -64,17 +64,9 @@ impl ToString for GameResult {
 pub const START_FEN: &str = "r5b/7/7/7/7/7/b5r r 0 1";
 pub const START_FEN_4_BLOCKERS: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
 
-pub type Move = [Square; 2];
-pub const FROM: usize = 0;
-pub const TO: usize = 1;
-pub const MOVE_PASS: Move = [50, 50];
-pub const MOVE_NONE: Move = [51, 51];
-pub type MovesArray = [Move; 256];
-pub const EMPTY_MOVES_ARRAY: MovesArray = [MOVE_NONE; 256];
-
-pub const INFINITY: i16 = 32000;
-pub const MIN_WIN_SCORE: i16 = 31000;
-pub const EVAL_NONE: i16 = INFINITY;
+pub const INFINITY: i32 = 32000;
+pub const MIN_WIN_SCORE: i32 = 31000;
+pub const EVAL_NONE: i32 = INFINITY;
 
 /*
 42 43 44 45 46 47 48

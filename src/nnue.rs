@@ -58,7 +58,7 @@ impl Accumulator {
     }
 }
 
-pub fn evaluate(color: Color, accumulator: &Accumulator) -> i16
+pub fn evaluate(color: Color, accumulator: &Accumulator) -> i32
 {
     let mut us: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.red;
     let mut them: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.blue;
@@ -75,7 +75,7 @@ pub fn evaluate(color: Color, accumulator: &Accumulator) -> i16
     }
 
     let eval = (sum / QA + NET.output_bias as i32) * SCALE / (QA * QB);
-    clamp(eval, -MIN_WIN_SCORE as i32 + 1, MIN_WIN_SCORE as i32 - 1) as i16
+    clamp(eval, -MIN_WIN_SCORE + 1, MIN_WIN_SCORE - 1)
 }
 
 #[inline]

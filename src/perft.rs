@@ -1,24 +1,34 @@
+use std::time::Instant;
 use crate::board::*;
 use crate::types::*;
 use crate::utils::*;
+use crate::ataxx_move::*;
 
-pub fn perft(board: &mut Board, depth: u8) -> u64
+fn perft(board: &mut Board, depth: u8) -> u64
 {
     if depth == 0 {
-        return 1u64
+        return 1u64;
     }
 
     if board.get_game_result() != GameResult::None {
-        return 0u64
+        return 0u64;
     }
 
-    let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
-    let num_moves = board.moves(&mut moves);
+    if depth == 1 {
+        let mut moves: MovesList = MovesList::default();
+        board.moves(&mut moves);
+        return moves.num_moves as u64;
+    }
+
+    // Generate moves
+    let mut moves: MovesList = MovesList::default();
+    board.moves(&mut moves);
+    assert!(moves.num_moves > 0);
     let mut nodes: u64 = 0;
 
-    for i in 0..num_moves
+    for i in 0..(moves.num_moves as usize)
     {
-        board.make_move(moves[i as usize]);
+        board.make_move(moves[i]);
         nodes += perft(board, depth - 1);
         board.undo_move();
     }
@@ -26,23 +36,50 @@ pub fn perft(board: &mut Board, depth: u8) -> u64
     nodes
 }
 
-pub fn perft_split(board: &mut Board, depth: u8)
+pub fn perft_split(fen: &str, depth: u8)
 {
     assert!(depth > 0);
+    println!("Running split perft depth {} on {}", depth, fen);
 
-    let mut moves: MovesArray = EMPTY_MOVES_ARRAY;
-    let num_moves = board.moves(&mut moves);
+    // build board with perft=true (no NNUE accumulator updates)
+    let mut board = Board::new(fen, true);
+
+    // Generate moves
+    let mut moves: MovesList = MovesList::default();
+    board.moves(&mut moves);
+    assert!(moves.num_moves > 0);
     let mut total_nodes: u64 = 0;
 
-    for i in 0..num_moves
+    for i in 0..(moves.num_moves as usize)
     {
-        let mov: Move = moves[i as usize];
+        let mov: AtaxxMove = moves[i];
         board.make_move(mov);
-        let nodes: u64 = perft(board, depth - 1);
+        let nodes: u64 = perft(&mut board, depth - 1);
         total_nodes += nodes;
         board.undo_move();
-        println!("{}: {}", move_to_str(mov), nodes);
+        println!("{}: {}", mov, nodes);
     }
 
     println!("Total: {}", total_nodes);
+}
+
+pub fn perft_bench(fen: &str, depth: u8) -> u64
+{
+    println!("Running perft depth {} on {}", depth, fen);
+
+    // build board with perft=true (no NNUE accumulator updates)
+    let mut board = Board::new(fen, true);
+
+    let start = Instant::now();
+    let nodes = perft(&mut board, depth);
+
+    println!("perft depth {} nodes {} nps {} time {} fen {}",
+             depth, 
+             nodes, 
+             nodes * 1000 / milliseconds_elapsed(start).max(1) as u64,
+             milliseconds_elapsed(start), 
+             fen);
+
+    assert!(board.fen() == fen);
+    nodes
 }

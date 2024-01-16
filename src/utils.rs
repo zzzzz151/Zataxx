@@ -3,6 +3,7 @@
 
 use std::time::Instant;
 use crate::types::*;
+use crate::ataxx_move::*;
 
 /*
 42 43 44 45 46 47 48
@@ -128,45 +129,16 @@ pub fn str_to_square(sq: &str) -> Square {
     (rank * 7 + file) as Square
 }
 
-pub fn move_to_str(mov: Move) -> String
-{
-    assert!(mov != MOVE_NONE);
-
-    if mov == MOVE_PASS {
-        return String::from("0000");
-    }
-    if mov[FROM] == mov[TO] { 
-        SQUARE_TO_STR[mov[TO] as usize].to_string() 
-    }
-    else { 
-        SQUARE_TO_STR[mov[FROM] as usize].to_string() + SQUARE_TO_STR[mov[TO] as usize] 
-    }
-}
-
-pub fn str_to_move(mov: &str) -> Move {
-    if mov.len() == 2 {
-        let sq: Square = str_to_square(mov);
-        return [sq, sq];
-    }
-
-    let str_from = &mov[0..2];
-    let str_to = &mov[mov.len() - 2..];
-
-    let from: Square = str_to_square(str_from);
-    let to: Square = str_to_square(str_to);
-    [from, to]
-}
-
 pub fn milliseconds_elapsed(start_time: Instant) -> u64 {
     let now = Instant::now();
     now.duration_since(start_time).as_millis() as u64
 }
 
-pub fn incremental_sort(moves: &mut MovesArray, num_moves: u8, moves_scores: &mut [u8; 256], i: usize) -> (Move, u8)
+pub fn incremental_sort(moves: &mut MovesList, moves_scores: &mut [u8; 256], i: usize) -> (AtaxxMove, u8)
 {
-    for j in ((i+1) as usize)..(num_moves as usize) {
+    for j in ((i+1) as usize)..(moves.num_moves as usize) {
         if moves_scores[j] > moves_scores[i] {
-            (moves[i], moves[j]) = (moves[j], moves[i]);
+            moves.swap(i, j);
             (moves_scores[i], moves_scores[j]) = (moves_scores[j], moves_scores[i]);
         }
     }
