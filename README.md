@@ -49,8 +49,9 @@ The exe will be in target/release.
 
 ### Move ordering
 - TT move
-- Bonus for single moves
 - Most captures
+- Bonus for single moves
+- Bonus for killer moves
 
 ### Time management
 - Soft and hard limits
