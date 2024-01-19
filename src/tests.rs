@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use crate::types::*;
     use crate::Board;
     use crate::GameResult;
     use crate::perft::*;
@@ -42,7 +43,7 @@ mod tests {
         ];
 
         for test in game_over_tests.iter() {
-            let mut board: Board = Board::new(test.0, true);
+            let mut board: Board = Board::new(test.0);
             if test.1 == false {
                 assert!(board.get_game_result() == GameResult::None);
             }
@@ -82,7 +83,7 @@ mod tests {
         ];
     
         for test in tests.iter() {
-            let mut board: Board = Board::new(test.0, true);
+            let mut board: Board = Board::new(test.0);
             assert_eq!(board.get_game_result(), test.1);
         }
     }
@@ -123,12 +124,33 @@ mod tests {
                 if expected_nodes == -1 {
                     continue;
                 }
-                let our_nodes: u64 = perft_bench(fen, depth as u8);
+                let our_nodes: u64 = perft_bench(&fen, depth as u8);
                 assert_eq!(our_nodes as i32, expected_nodes);
             }
+        }
     }
 
+    #[test]
+    fn test_make_undo_move_fen_eval_hash()
+    {
+        let mut board = Board::new(START_FEN);
+        let fen = board.fen();
+        let hash = board.state.zobrist_hash;
+        let eval = board.evaluate();
+        assert_eq!(fen, START_FEN);
 
+        board.make_move(AtaxxMove::from_uai("b6"));
+        board.undo_move();
+        assert_eq!(board.fen(), fen);
+        assert_eq!(board.state.zobrist_hash, hash);
+        assert_eq!(board.evaluate(), eval);
+
+        board.make_move(MOVE_PASS);
+        assert_eq!(Board::new(&board.fen()).evaluate(), board.evaluate());
+        board.undo_move();
+        assert_eq!(board.fen(), fen);
+        assert_eq!(board.state.zobrist_hash, hash);
+        assert_eq!(board.evaluate(), eval);
     }
 
 }

@@ -7,6 +7,7 @@ use crate::board::*;
 use crate::perft::*;
 use crate::tt::*;
 use crate::search::*;
+use crate::bench::*;
 use crate::datagen::*;
 
 pub fn uai_loop(search_data: &mut SearchData)
@@ -56,8 +57,18 @@ pub fn uai_loop(search_data: &mut SearchData)
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
                 perft_split(&search_data.board.fen(), depth);
             }
+            "bench" => {
+                let depth: u8 = input_split[1].parse::<u8>().unwrap();
+                bench(depth);
+            }
             "gameresult" => {
                 println!("{}", search_data.board.get_game_result().to_string());
+            }
+            "makemove" => {
+                search_data.board.make_move(AtaxxMove::from_uai(input_split[1]));
+            }
+            "undomove" => {
+                search_data.board.undo_move();
             }
             "datagen_openings" => {
                 datagen_openings();
@@ -90,7 +101,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
 {
     // apply fen
     if tokens[1] == "startpos" {
-       search_data.board = Board::new(START_FEN, false);
+       search_data.board = Board::new(START_FEN);
     }
     else if tokens[1] == "fen"
     {
@@ -103,7 +114,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
             fen.push(' ');
         }
         fen.pop(); // remove last whitespace
-        search_data.board = Board::new(&fen, false);
+        search_data.board = Board::new(&fen);
     }
 
     // apply moves if any

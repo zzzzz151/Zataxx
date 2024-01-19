@@ -61,8 +61,8 @@ impl ToString for GameResult {
     }
 }
 
-pub const START_FEN: &str = "r5b/7/7/7/7/7/b5r r 0 1";
-pub const START_FEN_4_BLOCKERS: &str = "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1";
+pub const START_FEN: &str = "x5o/7/7/7/7/7/o5x x 0 1";
+pub const START_FEN_4_BLOCKERS: &str = "x5o/7/2-1-2/7/2-1-2/7/o5x x 0 1";
 
 pub const INFINITY: i32 = 32000;
 pub const MIN_WIN_SCORE: i32 = 31000;

@@ -33,6 +33,10 @@ impl AtaxxMove
     }
 
     pub fn from_uai(uai_move: &str) -> AtaxxMove {
+        if uai_move == "0000" {
+            return Self::single(51);
+        }
+
         if uai_move.len() == 2 {
             let sq: Square = str_to_square(uai_move);
             return Self { from: sq, to: sq };

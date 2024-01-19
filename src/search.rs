@@ -227,7 +227,6 @@ fn pvs(search_data: &mut SearchData, mut depth: i32, ply: i32,
     // Generate moves
     let mut moves: MovesList = MovesList::default();
     search_data.board.moves(&mut moves);
-    assert!(moves.num_moves > 0);
 
     // Score moves
     let mut moves_scores: [u8; 256] = [0; 256];

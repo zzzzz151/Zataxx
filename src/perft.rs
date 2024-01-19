@@ -23,7 +23,6 @@ fn perft(board: &mut Board, depth: u8) -> u64
     // Generate moves
     let mut moves: MovesList = MovesList::default();
     board.moves(&mut moves);
-    assert!(moves.num_moves > 0);
     let mut nodes: u64 = 0;
 
     for i in 0..(moves.num_moves as usize)
@@ -40,14 +39,12 @@ pub fn perft_split(fen: &str, depth: u8)
 {
     assert!(depth > 0);
     println!("Running split perft depth {} on {}", depth, fen);
-
-    // build board with perft=true (no NNUE accumulator updates)
-    let mut board = Board::new(fen, true);
+    let mut board = Board::new(fen);
+    board.nnue = false;
 
     // Generate moves
     let mut moves: MovesList = MovesList::default();
     board.moves(&mut moves);
-    assert!(moves.num_moves > 0);
     let mut total_nodes: u64 = 0;
 
     for i in 0..(moves.num_moves as usize)
@@ -66,9 +63,8 @@ pub fn perft_split(fen: &str, depth: u8)
 pub fn perft_bench(fen: &str, depth: u8) -> u64
 {
     println!("Running perft depth {} on {}", depth, fen);
-
-    // build board with perft=true (no NNUE accumulator updates)
-    let mut board = Board::new(fen, true);
+    let mut board = Board::new(fen);
+    board.nnue = false;
 
     let start = Instant::now();
     let nodes = perft(&mut board, depth);
@@ -80,6 +76,5 @@ pub fn perft_bench(fen: &str, depth: u8) -> u64
              milliseconds_elapsed(start), 
              fen);
 
-    assert!(board.fen() == fen);
     nodes
 }

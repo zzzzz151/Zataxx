@@ -38,26 +38,23 @@ pub struct Board
 {
     pub state: BoardState,
     pub states: Vec<BoardState>,
-    pub perft: bool
+    pub nnue: bool
 }
 
 impl Board
 {
-    pub fn default(perft: bool) -> Self {
-        Self {
-            state: BoardState::default(),
-            states: Vec::with_capacity(256),
-            perft: perft
-        }
-    }
-
-    pub fn new(fen: &str, perft: bool) -> Self
+    pub fn new(fen: &str) -> Self
     {
         // Fen: pieces stm halfmove fullmove 
         // r5b/7/7/7/7/7/b5r r 0 1
         // r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1
 
-        let mut board: Board = Board::default(perft);
+        let mut board: Board = Self {
+            state: BoardState::default(),
+            states: Vec::with_capacity(256),
+            nnue: true
+        };
+
         let fen = fen.trim().to_string();
         let fen_split: Vec<&str> = fen.split(' ').map(str::trim).collect();
         let fen_rows: Vec<&str> = fen_split[0].split('/').map(str::trim).collect();
@@ -127,7 +124,7 @@ impl Board
         my_fen.pop(); // remove last '/'
 
         my_fen.push(' ');
-        my_fen.push(if self.state.color == Color::Red {'r'} else {'b'});
+        my_fen.push(if self.state.color == Color::Red {'x'} else {'o'});
 
         my_fen.push(' ');
         my_fen += &self.state.plies_since_single.to_string();
@@ -142,7 +139,7 @@ impl Board
     {
         self.state.bitboards[color as usize] |= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
-        if !self.perft {
+        if self.nnue {
             self.state.accumulator.update(color, sq, true);
         }
     }
@@ -151,7 +148,7 @@ impl Board
     {
         self.state.bitboards[color as usize] ^= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
-        if !self.perft {
+        if self.nnue {
             self.state.accumulator.update(color, sq, false);
         }
     }
@@ -184,10 +181,10 @@ impl Board
             '-'
         }
         else if (self.state.bitboards[Color::Red as usize] & sq_bb) > 0 {
-            'r'
+            'x'
         }
         else if (self.state.bitboards[Color::Blue as usize] & sq_bb) > 0 {
-            'b'
+            'o'
         }
         else {
             '.'
@@ -221,21 +218,22 @@ impl Board
     {
         assert!(mov != MOVE_NONE);
         self.states.push(self.state);
+        self.state.mov = mov;
 
         if self.state.color == Color::Blue {
             self.state.current_move += 1;
         }
 
         if mov == MOVE_PASS {
+            if self.states.len() > 0 {
+                assert!(self.states.last().unwrap().mov != MOVE_PASS);  
+            }
             self.state.plies_since_single += 1;
             self.swap_stm();
-            return
+            return;
         }
 
-        // create piece on destination
         self.place_piece(self.state.color, mov.to);
-
-        // if not a single, remove piece at source
         if mov.is_double() {
             self.remove_piece(self.state.color, mov.from);
         }
@@ -263,6 +261,7 @@ impl Board
 
     pub fn undo_move(&mut self)
     {
+        assert!(self.state.mov != MOVE_NONE);
         assert!(self.states.len() > 0);
         self.state = *self.states.last().unwrap();
         self.states.pop();
@@ -295,9 +294,9 @@ impl Board
             moves_list.add(AtaxxMove::single(sq));
         }
 
-        if moves_list.num_moves == 0
-        && !(self.states.len() > 0 && self.states.last().unwrap().mov == MOVE_PASS)
+        if moves_list.num_moves == 0 
         {
+            assert!(self.state.mov != MOVE_PASS);
             moves_list.add(MOVE_PASS);
         }
     }

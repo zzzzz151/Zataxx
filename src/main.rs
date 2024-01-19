@@ -9,6 +9,7 @@ mod tt;
 mod datagen;
 mod uai;
 mod search;
+mod bench;
 mod tests;
 
 use std::env;
@@ -37,7 +38,7 @@ fn main() {
         }
     }
 
-    let mut search_data = SearchData::new(Board::new(START_FEN, false), 
-                                          100, U64_MAX, U64_MAX, U64_MAX);
+    let mut search_data = SearchData::new(Board::new(START_FEN), 100, 
+                                          U64_MAX, U64_MAX, U64_MAX);
     uai_loop(&mut search_data);
 }

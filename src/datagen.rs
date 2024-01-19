@@ -39,13 +39,11 @@ pub fn datagen()
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
-    let start_board: Board = Board::new(START_FEN, false);
-    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS, false);
+    let start_board: Board = Board::new(START_FEN);
+    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS);
     let mut map: u8 = 0; // map=0 => no blockers, map=1 => 4 blockers
 
-    let mut search_data = SearchData::new(Board::default(false), 
-                                          100, U64_MAX, SOFT_NODES, HARD_NODES);
-
+    let mut search_data = SearchData::new(start_board.clone(), 100, U64_MAX, SOFT_NODES, HARD_NODES);
     let mut rng = rand::thread_rng();
     let mut positions_written: u64 = 0;
     let datagen_start_time = Instant::now();
@@ -65,7 +63,7 @@ pub fn datagen()
             // Generate moves and make a random one
             let mut moves: MovesList = MovesList::default();
             search_data.board.moves(&mut moves);
-            assert!(moves.num_moves > 0);
+
             let random_index = rng.gen_range(0..moves.num_moves);
             search_data.board.make_move(moves[random_index as usize]);
 
@@ -166,10 +164,9 @@ pub fn datagen_openings()
         Err(e) => panic!("Error creating file {}: {}", file_path, e),
     };
 
-    let start_board: Board = Board::new(START_FEN, false);
-    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS, false);
-    let mut search_data = SearchData::new(Board::default(false), 
-                                          100, U64_MAX, 1_000_000, 100_000_000);
+    let start_board: Board = Board::new(START_FEN);
+    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS);
+    let mut search_data = SearchData::new(start_board.clone(), 100, U64_MAX, 1_000_000, 100_000_000);
     let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(1024);
     let mut rng = rand::thread_rng();
     let ply: usize = 8;
@@ -184,7 +181,7 @@ pub fn datagen_openings()
             // Generate moves and make a random one
             let mut moves: MovesList = MovesList::default();
             search_data.board.moves(&mut moves);
-            assert!(moves.num_moves > 0);
+
             let random_index = rng.gen_range(0..moves.num_moves) as usize;
             search_data.board.make_move(moves[random_index]);
 
