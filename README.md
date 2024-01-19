@@ -1,10 +1,10 @@
 # Zataxx - Ataxx engine in Rust
 
-# How to compile
+# How to compile (requires avx2)
 
-```cargo build --release```
+```cargo rustc --release -- -C target-cpu=native```
 
-The exe will be in target/release.
+The exe will be in `target/release`
 
 # UAI (Universal Ataxx Interface)
 
@@ -20,6 +20,8 @@ The exe will be in target/release.
 
 - perftsplit \<depth\> - runs split perft from current position
 
+- bench \<depth\> - runs bench
+
 - gameresult - displays current game result ("*" not over, "1.0" red won, "0.0" red lost, "0.5" draw)
 
 # Features
@@ -32,7 +34,7 @@ The exe will be in target/release.
 ### NNUE evaluation
 - 147->256x2->1
 - Self-play data
-- Screlu activation
+- SCReLU 181
 
 ### Search
 - Iterative deepening

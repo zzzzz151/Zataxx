@@ -3,18 +3,18 @@ use crate::utils::*;
 
 pub const HIDDEN_LAYER_SIZE: usize = 256;
 pub const SCALE: i32 = 400;
-pub const QA: i32 = 255;
+pub const QA: i32 = 181;
 pub const QB: i32 = 64;
 
 #[repr(C)]
 pub struct Net {
     feature_weights: [i16; 147 * HIDDEN_LAYER_SIZE],
     feature_biases: [i16; HIDDEN_LAYER_SIZE],
-    output_weights: [i16; 2 * HIDDEN_LAYER_SIZE],
+    output_weights: [[i16; HIDDEN_LAYER_SIZE]; 2],
     output_bias: i16
 }
 
-static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net3_90wdl.nnue")) };
+static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net3.nnue")) };
 
 #[derive(Clone, Copy)]
 #[repr(C, align(64))]
@@ -60,25 +60,85 @@ impl Accumulator {
 
 pub fn evaluate(color: Color, accumulator: &Accumulator) -> i32
 {
-    let mut us: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.red;
-    let mut them: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.blue;
+    let mut stm_acc: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.red;
+    let mut opp_acc: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.blue;
 
     if color == Color::Blue {
-        us = &accumulator.blue;
-        them = &accumulator.red;
+        stm_acc = &accumulator.blue;
+        opp_acc = &accumulator.red;
     }
 
+    #[allow(unused_assignments)]
     let mut sum: i32 = 0;
-    for i in 0..HIDDEN_LAYER_SIZE {
-        sum += screlu(us[i]) * NET.output_weights[i] as i32;
-        sum += screlu(them[i]) * NET.output_weights[i + HIDDEN_LAYER_SIZE] as i32;
+
+    #[cfg(target_feature="avx2")]
+    unsafe {
+        sum = avx2::flatten(stm_acc, &NET.output_weights[0])
+              + avx2::flatten(opp_acc, &NET.output_weights[1]);
     }
 
-    let eval = (sum / QA + NET.output_bias as i32) * SCALE / (QA * QB);
+    #[cfg(not(target_feature="avx2"))]
+    {
+        for i in 0..HIDDEN_LAYER_SIZE {
+            sum += screlu(stm_acc[i]) * NET.output_weights[0][i] as i32;
+            sum += screlu(opp_acc[i]) * NET.output_weights[1][i] as i32;
+        }
+    }
+
+    let eval: i32 = (sum / QA + NET.output_bias as i32) * SCALE / (QA * QB);
     clamp(eval, -MIN_WIN_SCORE + 1, MIN_WIN_SCORE - 1)
 }
 
+#[allow(dead_code)]
 #[inline]
 fn screlu(x: i16) -> i32 {
     i32::from(x.clamp(0, QA as i16)).pow(2)
 }
+
+#[cfg(target_feature="avx2")]
+mod avx2 {
+    use crate::nnue::*;
+    use std::arch::x86_64::*;
+
+    pub unsafe fn flatten(acc: &[i16; HIDDEN_LAYER_SIZE], 
+                          weights: &[i16; HIDDEN_LAYER_SIZE]) -> i32 
+    {
+        let mut sum = _mm256_setzero_si256();
+
+        for i in 0..HIDDEN_LAYER_SIZE / 16 {
+            let v = screlu(load_i16s(acc, i * 16));
+            let w = load_i16s(weights, i * 16);
+            let product = _mm256_madd_epi16(v, w);
+            sum = _mm256_add_epi32(sum, product);
+        }
+
+        horizontal_sum_i32(sum)
+    }
+
+    #[inline]
+    unsafe fn screlu(mut v: __m256i) -> __m256i {
+        let min = _mm256_setzero_si256();
+        let max = _mm256_set1_epi16(QA as i16);
+        v = _mm256_min_epi16(_mm256_max_epi16(v, min), max);
+        _mm256_mullo_epi16(v, v)
+    }
+
+    #[inline]
+    unsafe fn load_i16s(accumulator: &[i16; HIDDEN_LAYER_SIZE], start_idx: usize) -> __m256i {
+        _mm256_load_si256(accumulator.as_ptr().add(start_idx).cast())
+    }
+
+    #[inline]
+    unsafe fn horizontal_sum_i32(sum: __m256i) -> i32 {
+        let upper_128 = _mm256_extracti128_si256::<1>(sum);
+        let lower_128 = _mm256_castsi256_si128(sum);
+        let sum_128 = _mm_add_epi32(upper_128, lower_128);
+        let upper_64 = _mm_unpackhi_epi64(sum_128, sum_128);
+        let sum_64 = _mm_add_epi32(upper_64, sum_128);
+        let upper_32 = _mm_shuffle_epi32::<0b00_00_00_01>(sum_64);
+        let sum_32 = _mm_add_epi32(upper_32, sum_64);
+
+        _mm_cvtsi128_si32(sum_32)
+    }
+}
+
