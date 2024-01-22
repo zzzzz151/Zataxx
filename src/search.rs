@@ -237,9 +237,9 @@ fn pvs(search_data: &mut SearchData, mut depth: i32, ply: i32,
                 moves_scores[i] = 255;
             }
             else {
-                moves_scores[i] = mov.is_single() as u8;
+                moves_scores[i] = if mov.is_single() { 100 } else { 0 };
                 moves_scores[i] += search_data.board.num_adjacent_enemies(mov.to);
-                moves_scores[i] += (mov == search_data.killers[ply as usize]) as u8 * 2;
+                //moves_scores[i] += (mov == search_data.killers[ply as usize]) as u8 * 2;
             }
         }
     }

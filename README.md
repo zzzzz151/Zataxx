@@ -48,16 +48,11 @@ The exe will be in `target/release`
 - Internal iterative reduction
 - Late move reductions
 - Singular extension, negative extension
-
-### Move ordering
-- TT move
-- Most captures
-- Bonus for single moves
-- Bonus for killer moves
+- Move ordering: TT move -> singles by captures -> doubles by captures
 
 ### Time management
 - Soft and hard limits
-- Soft limit scaling based on best move nodes
+- Nodes TM
 
 # Credits
 
