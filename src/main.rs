@@ -32,7 +32,6 @@ fn main() {
 
     #[cfg(not(target_feature="avx2"))] {
         println!("Warning: not using avx2");
-        panic!("Not using avx2!");
     }
 
     let args: Vec<String> = env::args().collect();

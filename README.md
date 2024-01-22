@@ -1,6 +1,6 @@
 # Zataxx - Ataxx engine in Rust
 
-# How to compile (requires avx2)
+# How to compile
 
 ```cargo rustc --release -- -C target-cpu=native```
 
