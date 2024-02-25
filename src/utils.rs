@@ -34,8 +34,7 @@ pub fn square_file(sq: Square) -> File {
 }
 
 
-pub fn opp_color(color: Color) -> Color
-{
+pub fn opp_color(color: Color) -> Color {
     match color {
         Color::Red => Color::Blue,
         Color::Blue => Color::Red,
@@ -136,7 +135,7 @@ pub fn milliseconds_elapsed(start_time: Instant) -> u64 {
 
 pub fn incremental_sort(moves: &mut MovesList, moves_scores: &mut [u8; 256], i: usize) -> (AtaxxMove, u8)
 {
-    for j in ((i+1) as usize)..(moves.num_moves as usize) {
+    for j in ((i+1) as usize)..(moves.size() as usize) {
         if moves_scores[j] > moves_scores[i] {
             moves.swap(i, j);
             (moves_scores[i], moves_scores[j]) = (moves_scores[j], moves_scores[i]);

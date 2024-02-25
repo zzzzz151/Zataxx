@@ -4,28 +4,25 @@ use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
 
-fn perft(board: &mut Board, depth: u8) -> u64
+pub fn perft(board: &mut Board, depth: u8) -> u64
 {
     if depth == 0 {
         return 1u64;
     }
 
-    if board.get_game_result() != GameResult::None {
+    if board.game_state().0 != GameState::Ongoing {
         return 0u64;
-    }
-
-    if depth == 1 {
-        let mut moves: MovesList = MovesList::default();
-        board.moves(&mut moves);
-        return moves.num_moves as u64;
     }
 
     // Generate moves
     let mut moves: MovesList = MovesList::default();
     board.moves(&mut moves);
+
+    if depth == 1 { return moves.size().into() };
+
     let mut nodes: u64 = 0;
 
-    for i in 0..(moves.num_moves as usize)
+    for i in 0..(moves.size() as usize)
     {
         board.make_move(moves[i]);
         nodes += perft(board, depth - 1);
@@ -47,7 +44,7 @@ pub fn perft_split(fen: &str, depth: u8)
     board.moves(&mut moves);
     let mut total_nodes: u64 = 0;
 
-    for i in 0..(moves.num_moves as usize)
+    for i in 0..(moves.size() as usize)
     {
         let mov: AtaxxMove = moves[i];
         board.make_move(mov);
@@ -70,11 +67,11 @@ pub fn perft_bench(fen: &str, depth: u8) -> u64
     let nodes = perft(&mut board, depth);
 
     println!("perft depth {} nodes {} nps {} time {} fen {}",
-             depth, 
-             nodes, 
-             nodes * 1000 / milliseconds_elapsed(start).max(1) as u64,
-             milliseconds_elapsed(start), 
-             fen);
+        depth, 
+        nodes, 
+        nodes * 1000 / milliseconds_elapsed(start).max(1) as u64,
+        milliseconds_elapsed(start), 
+        fen);
 
     nodes
 }

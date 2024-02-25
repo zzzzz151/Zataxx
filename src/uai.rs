@@ -5,12 +5,12 @@ use crate::types::*;
 use crate::ataxx_move::*;
 use crate::board::*;
 use crate::perft::*;
-use crate::tt::*;
+use crate::tt_entry::*;
 use crate::search::*;
 use crate::bench::*;
 use crate::datagen::*;
 
-pub fn uai_loop(search_data: &mut SearchData)
+pub fn uai_loop(searcher: &mut Searcher)
 {
     loop
     {
@@ -26,49 +26,47 @@ pub fn uai_loop(search_data: &mut SearchData)
             "uai" => {
                 println!("id name Zataxx");
                 println!("id author zzzzz");
+                println!("option name Hash type spin default {} min 1 max 1024", DEFAULT_TT_SIZE_MB);
                 println!("uaiok");
             }
             "setoption" => { 
-                setoption(input_split, search_data);
+                setoption(input_split, searcher);
             }
             "isready" => { 
                 println!("readyok"); 
             }
             "uainewgame" => { 
-                uainewgame(search_data);
+                uainewgame(searcher);
             }
             "position" => { 
-                position(input_split, search_data);
+                position(input_split, searcher);
              }
             "go" => { 
-                go(input_split, search_data);
+                go(input_split, searcher);
              }
             "d" | "display" | "print" | "show" => { 
-                search_data.board.print(); 
+                searcher.board.print(); 
             }
             "eval" | "evaluate" | "evaluation" => {
-                println!("eval {}", search_data.board.evaluate());
+                println!("eval {}", searcher.board.evaluate());
             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                perft_bench(&search_data.board.fen(), depth);
+                perft_bench(&searcher.board.fen(), depth);
             }
             "perftsplit" | "splitperft" => { 
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                perft_split(&search_data.board.fen(), depth);
+                perft_split(&searcher.board.fen(), depth);
             }
             "bench" => {
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
                 bench(depth);
             }
-            "gameresult" => {
-                println!("{}", search_data.board.get_game_result().to_string());
-            }
             "makemove" => {
-                search_data.board.make_move(AtaxxMove::from_uai(input_split[1]));
+                searcher.board.make_move(AtaxxMove::from_uai(input_split[1]));
             }
             "undomove" => {
-                search_data.board.undo_move();
+                searcher.board.undo_move();
             }
             "datagen_openings" => {
                 datagen_openings();
@@ -81,27 +79,29 @@ pub fn uai_loop(search_data: &mut SearchData)
     }
 }
 
-pub fn setoption(tokens: Vec<&str>, search_data: &mut SearchData)
+pub fn setoption(tokens: Vec<&str>, searcher: &mut Searcher)
 {
     let option_name = tokens[2];
     let option_value = tokens[4];
 
-    if option_name == "hash" || option_name == "Hash" {
-        search_data.tt = TT::new(option_value.parse::<usize>().unwrap());
+    if option_name == "hash" || option_name == "Hash" 
+    {
+        let size_mb: usize = option_value.parse().unwrap();
+        searcher.resize_tt(size_mb);
     }
 }
 
-pub fn uainewgame(search_data: &mut SearchData)
+pub fn uainewgame(searcher: &mut Searcher)
 {
-    search_data.tt.reset();
-    search_data.killers = [MOVE_NONE; 256];
+    searcher.tt = vec![TTEntry::default(); searcher.tt.len()];
+    searcher.killers = vec![MOVE_NONE; searcher.killers.len()];
 }
 
-pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
+pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)
 {
     // apply fen
     if tokens[1] == "startpos" {
-       search_data.board = Board::new(START_FEN);
+       searcher.board = Board::new(START_FEN);
     }
     else if tokens[1] == "fen"
     {
@@ -114,7 +114,7 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
             fen.push(' ');
         }
         fen.pop(); // remove last whitespace
-        search_data.board = Board::new(&fen);
+        searcher.board = Board::new(&fen);
     }
 
     // apply moves if any
@@ -122,40 +122,40 @@ pub fn position(tokens: Vec<&str>, search_data: &mut SearchData)
     {
         if token == &"moves" {
             for j in (i+3)..tokens.len() {
-                search_data.board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
+                searcher.board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
             }
             break;
         }
     }
 }
 
-pub fn go(tokens: Vec<&str>, search_data: &mut SearchData)
+pub fn go(tokens: Vec<&str>, searcher: &mut Searcher)
 {
-    search_data.start_time = Instant::now();
-    search_data.milliseconds = U64_MAX;
+    searcher.start_time = Instant::now();
+    searcher.milliseconds = U64_MAX;
 
     let mut is_wtime_btime: bool = true;
     for i in (1..tokens.len()).step_by(2) {
-        if tokens[i] == "rtime"
-        {
+        if tokens[i] == "rtime" {
             is_wtime_btime = false;
             break;
         }
     }
 
-    for i in (1..tokens.len()).step_by(2) {
-        if (tokens[i] == "rtime" && search_data.board.state.color == Color::Red)
-        || (tokens[i] == "wtime" && search_data.board.state.color == Color::Blue)
+    for i in (1..tokens.len()).step_by(2) 
+    {
+        if (tokens[i] == "rtime" && searcher.board.state.color == Color::Red)
+        || (tokens[i] == "wtime" && searcher.board.state.color == Color::Blue)
         || (tokens[i] == "btime" 
-        && ((is_wtime_btime && search_data.board.state.color == Color::Red)
-        || (!is_wtime_btime && search_data.board.state.color == Color::Blue)))
+        && ((is_wtime_btime && searcher.board.state.color == Color::Red)
+        || (!is_wtime_btime && searcher.board.state.color == Color::Blue)))
         {
-            search_data.milliseconds = tokens[i+1].parse().unwrap();
+            searcher.milliseconds = tokens[i+1].parse().unwrap();
             break;
         }
     }
 
-    search(search_data, true);
-    assert!(search_data.best_move_root != MOVE_NONE);
-    println!("bestmove {}", search_data.best_move_root);
+    searcher.search(true);
+    assert!(searcher.best_move_root != MOVE_NONE);
+    println!("bestmove {}", searcher.best_move_root);
 }

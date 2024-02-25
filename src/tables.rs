@@ -13,15 +13,17 @@ pub const PST: [i16; 49] = [
 ];
 */
 
-pub fn get_lmr_table() -> [[u8; 256]; 256]
+pub fn get_lmr_table(mut max_depth: u8) -> Vec<Vec<u8>> 
 {
-    let mut table: [[u8; 256]; 256] = [[0; 256]; 256];
-    for depth in 1..256 {
-        for move_index in 1..256 {
-            table[depth as usize][move_index as usize] 
-                = (0.8 + (depth as f64).ln() * (move_index as f64).ln() * 0.4).round() as u8;
+    max_depth += 1;
+    let mut table = vec![vec![0; 256]; max_depth as usize];
+
+    for depth in 1..(max_depth as usize) {
+        for move_num in 1..256 {
+            table[depth][move_num] = (0.8 + (depth as f64).ln() * (move_num as f64).ln() * 0.4).round() as u8;
         }
     }
+
     table
 }
 

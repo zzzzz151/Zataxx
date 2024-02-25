@@ -9,6 +9,9 @@ pub struct AtaxxMove {
     pub to: Square
 }
 
+pub const MOVE_NONE: AtaxxMove = AtaxxMove { from: 50, to: 50 };
+pub const MOVE_PASS: AtaxxMove = AtaxxMove { from: 51, to: 51 };
+
 impl AtaxxMove
 {
     pub fn double(from: Square, to: Square) -> Self {
@@ -34,7 +37,7 @@ impl AtaxxMove
 
     pub fn from_uai(uai_move: &str) -> AtaxxMove {
         if uai_move == "0000" {
-            return Self::single(51);
+            return MOVE_PASS;
         }
 
         if uai_move.len() == 2 {
@@ -63,27 +66,8 @@ impl AtaxxMove
     }
 }
 
-pub const MOVE_NONE: AtaxxMove = AtaxxMove::single(50);
-pub const MOVE_PASS: AtaxxMove = AtaxxMove::single(51);
-
-/*
-impl ToString for AtaxxMove {
-    fn to_string(&self) -> String {
-        if *self == MOVE_NONE {
-            return String::from("0000");
-        }
-        if self.is_single() {
-            SQUARE_TO_STR[self.to as usize].to_string()
-        }
-        else {
-            SQUARE_TO_STR[self.from as usize].to_string()
-            + SQUARE_TO_STR[self.to as usize]
-        }
-    }
-}
-*/
-
-impl fmt::Display for AtaxxMove {
+impl fmt::Display for AtaxxMove 
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result 
     {
         assert!(*self != MOVE_NONE);
@@ -95,15 +79,14 @@ impl fmt::Display for AtaxxMove {
         }
         else {
             write!(f, "{}",
-                   SQUARE_TO_STR[self.from as usize].to_string()
-                   + SQUARE_TO_STR[self.to as usize])
+                SQUARE_TO_STR[self.from as usize].to_string() + SQUARE_TO_STR[self.to as usize])
         }
     }
 }
 
 pub struct MovesList {
     pub moves: [AtaxxMove; 256],
-    pub num_moves: u8
+    num_moves: u8
 }
 
 impl MovesList {
@@ -112,6 +95,14 @@ impl MovesList {
             moves: [MOVE_NONE; 256],
             num_moves: 0
         }
+    }
+
+    pub fn size(&self) -> u8 {
+        self.num_moves
+    }
+
+    pub fn clear(&mut self) {
+        self.num_moves = 0;
     }
 
     pub fn add(&mut self, mov: AtaxxMove) {

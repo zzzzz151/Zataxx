@@ -1,4 +1,4 @@
-use std::time::Instant;
+//use std::time::Instant;
 use crate::types::*;
 use crate::utils::*;
 use crate::board::*;
@@ -28,26 +28,21 @@ const FENS: [&str; 17] = [
 pub fn bench(depth: u8) {
     println!("Running bench depth {}", depth);
 
-    let mut search_data = SearchData::new(Board::new(START_FEN), depth, 
-                                          U64_MAX, U64_MAX, U64_MAX);
-
+    let mut searcher = Searcher::new(Board::new(START_FEN));
+    searcher.max_depth = depth;
     let mut nodes: u64 = 0;
     let mut milliseconds: u64 = 0;
 
     for &fen in FENS.iter() 
     {
-        search_data.board = Board::new(fen);
-        assert!(search_data.board.get_game_result() == GameResult::None);
-
-        search_data.start_time = Instant::now();
-        search(&mut search_data, false);
-
-        nodes += search_data.nodes;
-        milliseconds += milliseconds_elapsed(search_data.start_time);
-
-        uainewgame(&mut search_data);
+        searcher.board = Board::new(fen);
+        assert!(searcher.board.game_state().0 == GameState::Ongoing);
+        searcher.search(false);
+        nodes += searcher.nodes;
+        milliseconds += milliseconds_elapsed(searcher.start_time);
+        uainewgame(&mut searcher);
     }
 
     println!("bench depth {} nodes {} nps {} time {}", 
-             depth, nodes, nodes * 1000 / milliseconds, milliseconds);
+        depth, nodes, nodes * 1000 / milliseconds, milliseconds);
 }

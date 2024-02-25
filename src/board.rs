@@ -104,8 +104,7 @@ impl Board
             {   
                 let square = rank * 7 + file;
                 let piece = self.at(square);
-                if piece != '.'
-                {
+                if piece != '.' {
                     if empty_so_far > 0 {
                         my_fen.push(digit_to_char(empty_so_far));
                         empty_so_far = 0;
@@ -140,7 +139,7 @@ impl Board
         self.state.bitboards[color as usize] |= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
         if self.nnue {
-            self.state.accumulator.update(color, sq, true);
+            self.state.accumulator.activate(color, sq);
         }
     }
 
@@ -149,7 +148,7 @@ impl Board
         self.state.bitboards[color as usize] ^= 1u64 << (sq as u8);
         self.state.zobrist_hash ^= ZOBRIST_TABLE[color as usize][sq as usize];
         if self.nnue {
-            self.state.accumulator.update(color, sq, false);
+            self.state.accumulator.deactivate(color, sq);
         }
     }
 
@@ -179,14 +178,11 @@ impl Board
         let sq_bb: u64 = 1u64 << sq as u8;
         if self.is_square_blocked(sq) {
             '-'
-        }
-        else if (self.state.bitboards[Color::Red as usize] & sq_bb) > 0 {
+        } else if (self.state.bitboards[Color::Red as usize] & sq_bb) > 0 {
             'x'
-        }
-        else if (self.state.bitboards[Color::Blue as usize] & sq_bb) > 0 {
+        } else if (self.state.bitboards[Color::Blue as usize] & sq_bb) > 0 {
             'o'
-        }
-        else {
+        } else {
             '.'
         }
     }
@@ -217,6 +213,7 @@ impl Board
     pub fn make_move(&mut self, mov: AtaxxMove)
     {
         assert!(mov != MOVE_NONE);
+
         self.states.push(self.state);
         self.state.mov = mov;
 
@@ -269,12 +266,11 @@ impl Board
 
     pub fn moves(&mut self, moves_list: &mut MovesList)
     {
-        moves_list.num_moves = 0;
+        moves_list.clear();
         let mut us = self.us();
         let mut adjacent_target_squares: u64 = 0;
 
-        while us > 0
-        {
+        while us > 0 {
             let from = pop_lsb(&mut us) as Square;
             adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
             let mut leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]
@@ -288,27 +284,25 @@ impl Board
         }
 
         adjacent_target_squares &= !self.occupancy() & !self.state.blocked;
-        while adjacent_target_squares > 0
-        {
+        while adjacent_target_squares > 0 {
             let sq = pop_lsb(&mut adjacent_target_squares) as Square;
             moves_list.add(AtaxxMove::single(sq));
         }
 
-        if moves_list.num_moves == 0 
-        {
+        if moves_list.size() == 0 {
             assert!(self.state.mov != MOVE_PASS);
             moves_list.add(MOVE_PASS);
         }
     }
     
-    pub fn get_game_result(&mut self) -> GameResult
+    pub fn game_state(&mut self) -> (GameState, Color)
     {
         if self.state.bitboards[Color::Red as usize] == 0 {
-            return GameResult::WinBlue;
+            return (GameState::Won, Color::Blue);
         }
 
         if self.state.bitboards[Color::Blue as usize] == 0 {
-            return GameResult::WinRed;
+            return (GameState::Won, Color::Red);
         }
         
         if self.occupancy().count_ones() == 49 - self.state.blocked.count_ones()
@@ -316,16 +310,21 @@ impl Board
             let num_red_pieces: u8 = self.state.bitboards[Color::Red as usize].count_ones() as u8;
             let num_blue_pieces: u8 = self.state.bitboards[Color::Blue as usize].count_ones() as u8;
 
-            return if num_red_pieces > num_blue_pieces 
-                       { GameResult::WinRed }
-                   else if num_blue_pieces > num_red_pieces 
-                       { GameResult::WinBlue }
-                   else 
-                       { GameResult::Draw }
+            return if num_red_pieces > num_blue_pieces { 
+                (GameState::Won, Color::Red)
+            } else if num_blue_pieces > num_red_pieces { 
+                (GameState::Won, Color::Blue)
+            } else { 
+                (GameState::Draw, Color::None)
+            }
         }
 
         if !self.must_pass() {
-            return if self.state.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
+            return if self.state.plies_since_single >= 100 { 
+                (GameState::Draw, Color::None)
+            } else {
+                (GameState::Ongoing, Color::None)
+            }
         }
 
         self.state.color = opp_color(self.state.color);
@@ -333,18 +332,23 @@ impl Board
         self.state.color = opp_color(self.state.color);
 
         if !opponent_must_pass {
-            return if self.state.plies_since_single >= 100 { GameResult::Draw } else { GameResult::None };
+            return if self.state.plies_since_single >= 100 { 
+                (GameState::Draw, Color::None)
+            } else {
+                (GameState::Ongoing, Color::None)
+            }
         }
 
         let num_red_pieces: u8 = self.state.bitboards[Color::Red as usize].count_ones() as u8;
         let num_blue_pieces: u8 = self.state.bitboards[Color::Blue as usize].count_ones() as u8;
 
-        return if num_red_pieces > num_blue_pieces 
-                   { GameResult::WinRed }
-               else if num_blue_pieces > num_red_pieces 
-                   { GameResult::WinBlue }
-               else 
-                   { GameResult::Draw }
+        return if num_red_pieces > num_blue_pieces { 
+            (GameState::Won, Color::Red)
+        } else if num_blue_pieces > num_red_pieces { 
+            (GameState::Won, Color::Blue)
+        } else { 
+            (GameState::Draw, Color::None)
+        }
     }
 
     pub fn must_pass(&self) -> bool
@@ -352,8 +356,7 @@ impl Board
         let mut us = self.us();
         let mut adjacent_target_squares: u64 = 0;
 
-        while us > 0
-        {
+        while us > 0 {
             let from: Square = pop_lsb(&mut us) as Square;
             adjacent_target_squares |= ADJACENT_SQUARES_TABLE[from as usize];
             let leap_squares: u64 = LEAP_SQUARES_TABLE[from as usize]

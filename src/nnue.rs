@@ -40,20 +40,25 @@ impl Accumulator {
         }
     }
 
-    pub fn update(&mut self, color: Color, sq: Square, activate: bool)
+    pub fn activate(&mut self, color: Color, sq: Square)
     {
         let red_idx: usize = color as usize * 49 + sq as usize;
         let blue_idx: usize = opp_color(color) as usize * 49 + sq as usize;
 
         for i in 0..HIDDEN_LAYER_SIZE {
-            if activate {
-                self.red[i] += NET.feature_weights[i + red_idx * HIDDEN_LAYER_SIZE];
-                self.blue[i] += NET.feature_weights[i + blue_idx * HIDDEN_LAYER_SIZE];
-            }
-            else {
-                self.red[i] -= NET.feature_weights[i + red_idx * HIDDEN_LAYER_SIZE];
-                self.blue[i] -= NET.feature_weights[i + blue_idx * HIDDEN_LAYER_SIZE];
-            }
+            self.red[i] += NET.feature_weights[i + red_idx * HIDDEN_LAYER_SIZE];
+            self.blue[i] += NET.feature_weights[i + blue_idx * HIDDEN_LAYER_SIZE];
+        }
+    }
+
+    pub fn deactivate(&mut self, color: Color, sq: Square)
+    {
+        let red_idx: usize = color as usize * 49 + sq as usize;
+        let blue_idx: usize = opp_color(color) as usize * 49 + sq as usize;
+
+        for i in 0..HIDDEN_LAYER_SIZE {
+            self.red[i] -= NET.feature_weights[i + red_idx * HIDDEN_LAYER_SIZE];
+            self.blue[i] -= NET.feature_weights[i + blue_idx * HIDDEN_LAYER_SIZE];
         }
     }
 }

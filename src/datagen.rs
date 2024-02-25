@@ -5,21 +5,16 @@ use std::time::Instant;
 use std::fs::File;
 use std::io::prelude::*;
 use std::fs;
+use crate::uai::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
 use crate::board::*;
+use crate::tt_entry::*;
 use crate::search::*;
 
 pub fn datagen()
 {    
-    const SOFT_NODES: u64 = 5000;
-    const HARD_NODES: u64 = 10_000_000;
-    const OPENING_SCORE_THRESHOLD: i32 = 200;
-    const ADJ_SCORE: i32 = 2500;
-    const MIN_PLIES: u8 = 16;
-    const MAX_PLIES: u8 = 21;
-
     // Create 'data' folder
     let _ = fs::create_dir_all("data");
 
@@ -40,103 +35,110 @@ pub fn datagen()
     };
 
     let start_board: Board = Board::new(START_FEN);
-    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS);
-    let mut map: u8 = 0; // map=0 => no blockers, map=1 => 4 blockers
+    let mut searcher = Searcher::new(start_board.clone());
+    searcher.soft_nodes = 5000;
+    searcher.hard_nodes = 1_000_000;
 
-    let mut search_data = SearchData::new(start_board.clone(), 100, U64_MAX, SOFT_NODES, HARD_NODES);
     let mut rng = rand::thread_rng();
     let mut positions_written: u64 = 0;
     let datagen_start_time = Instant::now();
 
     // Infinite loop
-    loop 
-    {
-        search_data.start_time = Instant::now();
+    loop {
+        searcher.start_time = Instant::now();
+        searcher.board = start_board.clone();
+        let target_plies: u8 = rng.gen_range(16..=21) as u8;
+        let mut moves: MovesList = MovesList::default();
 
-        // Set start pos
-        search_data.board = if map == 0 {start_board.clone()} else {start_board_4_blockers.clone()};
-        map = 1 - map;
-
-        // Apply random opening
-        let plies: u8 = rng.gen_range(MIN_PLIES..=MAX_PLIES) as u8;
         loop {
             // Generate moves and make a random one
-            let mut moves: MovesList = MovesList::default();
-            search_data.board.moves(&mut moves);
+            searcher.board.moves(&mut moves);
+            let random_index = rng.gen_range(0..moves.size());
+            searcher.board.make_move(moves[random_index as usize]);
 
-            let random_index = rng.gen_range(0..moves.num_moves);
-            search_data.board.make_move(moves[random_index as usize]);
-
-            if search_data.board.get_game_result() != GameResult::None || moves[0] == MOVE_PASS
+            if moves[0] == MOVE_PASS || searcher.board.game_state().0 != GameState::Ongoing
             {
-                search_data.board = if map == 0 {start_board.clone()} else {start_board_4_blockers.clone()};
+                searcher.board = start_board.clone();
                 continue;
             }
 
-            if search_data.board.states.len() == plies.into() 
+            if searcher.board.states.len() == target_plies.into() 
             { 
                 // Skip very unbalanced openings
-                search_data.tt.reset();
-                search_data.killers = [MOVE_NONE; 256];
-                search_data.soft_nodes = SOFT_NODES * 2;
-                let score = search(&mut search_data, false).1;
-                search_data.soft_nodes = SOFT_NODES;
-                if score.abs() >= OPENING_SCORE_THRESHOLD { 
-                    search_data.board = if map == 0 {start_board.clone()} else {start_board_4_blockers.clone()};
-                    continue; 
+                uainewgame(&mut searcher);
+                let score = searcher.search(false).1;
+                if score.abs() >= 200 { 
+                    searcher.board = start_board.clone();
+                    continue;
                 }
                 break;
             }
         }
 
-        search_data.tt.reset();
-        search_data.start_time = Instant::now();
+        searcher.tt = vec![TTEntry::default(); searcher.tt.len()];
         let mut lines: Vec<String> = Vec::with_capacity(128);
-        let mut game_result = GameResult::None;
+        let mut game_state = GameState::Ongoing;
+        let mut winner = Color::None;
 
         // Play out game
         loop {
-            search_data.killers = [MOVE_NONE; 256];
-            let (mov, score) = search(&mut search_data, false);
+            searcher.killers = vec![MOVE_NONE; searcher.killers.len()];
+            let (mov, score) = searcher.search(false);
             assert!(mov != MOVE_NONE);
 
-            if score.abs() >= ADJ_SCORE {
-                game_result = if (search_data.board.state.color == Color::Red && score > 0)
-                              || (search_data.board.state.color == Color::Blue && score < 0)
-                                  {GameResult::WinRed} 
-                              else
-                                  {GameResult::WinBlue};
+            // Adjudication
+            if score.abs() >= 2500 {
+                game_state = GameState::Won;
+                winner = if score > 0 { 
+                    searcher.board.state.color 
+                } else {
+                    opp_color(searcher.board.state.color)
+                };
+
                 break;
             }
 
             lines.push(format!("{} | {}", 
-                       search_data.board.fen(), 
-                       if search_data.board.state.color == Color::Red {score} else {-score}));
+                searcher.board.fen(), 
+                if searcher.board.state.color == Color::Red {score} else {-score}));
 
-            search_data.board.make_move(mov);
-            game_result = search_data.board.get_game_result();
-            if game_result != GameResult::None {
+            searcher.board.make_move(mov);
+            (game_state, winner) = searcher.board.game_state();
+            if game_state != GameState::Ongoing {
                 break;
             }
         }
 
-        assert!(game_result != GameResult::None);
+        assert!(game_state != GameState::Ongoing);
+        if game_state != GameState::Draw {
+            assert!(winner != Color::None);
+        }
 
-        if search_data.board.state.plies_since_single >= 100 {
+        if searcher.board.state.plies_since_single >= 100 {
             continue;
         }
 
         // Write data from this game to file
-        for i in 0..lines.len() {
-            let line = format!("{} | {}\n", lines[i], game_result.to_string());
+        for i in 0..lines.len() 
+        {
+            let line = format!("{} | {}\n", 
+                lines[i], 
+                if winner == Color::Red {
+                    "1.0"
+                } else if winner == Color::Blue {
+                    "0.0"
+                } else {
+                    "0.5"
+                });
+
             let _ = file.write_all(line.as_bytes());
         }
 
         positions_written += lines.len() as u64;
         println!("{} | Positions: {} | Positions/sec: {}",
-                 file_path, 
-                 positions_written, 
-                 positions_written * 1000 / milliseconds_elapsed(datagen_start_time));
+            file_path, 
+            positions_written, 
+            positions_written * 1000 / milliseconds_elapsed(datagen_start_time));
     }
 
 }
@@ -165,47 +167,52 @@ pub fn datagen_openings()
     };
 
     let start_board: Board = Board::new(START_FEN);
-    let start_board_4_blockers: Board = Board::new(START_FEN_4_BLOCKERS);
-    let mut search_data = SearchData::new(start_board.clone(), 100, U64_MAX, 1_000_000, 100_000_000);
+    let mut searcher = Searcher::new(start_board.clone());
+    searcher.soft_nodes = 1_000_000;
+    searcher.hard_nodes = 100_000_000;
+
     let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(1024);
     let mut rng = rand::thread_rng();
-    let ply: usize = 8;
+    let target_ply: usize = 8;
+    let mut moves: MovesList = MovesList::default();
 
-    loop    
-    {
-        search_data.board = if zobrist_hashes_written.len() % 2 == 0 { start_board.clone() }
-                            else { start_board_4_blockers.clone() };
+    loop {
+        searcher.board = start_board.clone();
 
-        let mut skip = false;
-        for _i in 0..ply {
+        // Get a random opening with target_ply plies
+        loop {
             // Generate moves and make a random one
-            let mut moves: MovesList = MovesList::default();
-            search_data.board.moves(&mut moves);
+            searcher.board.moves(&mut moves);
+            let random_index = rng.gen_range(0..moves.size()) as usize;
+            searcher.board.make_move(moves[random_index]);  
 
-            let random_index = rng.gen_range(0..moves.num_moves) as usize;
-            search_data.board.make_move(moves[random_index]);
+            if searcher.board.game_state().0 != GameState::Ongoing
+            || searcher.board.must_pass() {
+                searcher.board = start_board.clone();
+                continue;
+            }
 
-            if search_data.board.get_game_result() != GameResult::None 
-            || search_data.board.must_pass() {
-                skip = true;
+            if searcher.board.states.len() == target_ply {
                 break;
             }
         }
 
-        if skip || zobrist_hashes_written.contains(&(search_data.board.state.zobrist_hash)) { 
+        assert!(searcher.board.game_state().0 == GameState::Ongoing);
+        assert!(!searcher.board.must_pass());
+
+        if zobrist_hashes_written.contains(&(searcher.board.state.zobrist_hash)) { 
             continue;
         }     
 
-        search_data.tt.reset();
-        search_data.killers = [MOVE_NONE; 256];
-        search_data.start_time = Instant::now();
-        let score = search(&mut search_data, false).1;
+        uainewgame(&mut searcher);
+        searcher.start_time = Instant::now();
+        let score = searcher.search(false).1;
 
         if score.abs() <= 1 {
-            let line: String = search_data.board.fen() + "\n";
+            let line: String = searcher.board.fen() + "\n";
             //print!("Writing opening {}", line);
             let _ = file.write_all(line.as_bytes());
-            zobrist_hashes_written.push(search_data.board.state.zobrist_hash);
+            zobrist_hashes_written.push(searcher.board.state.zobrist_hash);
             println!("{} | Openings written: {}", file_path, zobrist_hashes_written.len());
         }
     }

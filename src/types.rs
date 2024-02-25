@@ -7,8 +7,7 @@ pub type Square = u8;
 pub const SQUARE_NONE: Square = 255;
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Color {
     Red  = 0,
     Blue = 1,
@@ -40,25 +39,11 @@ pub enum File {
 }
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
-#[derive(Debug)]
-pub enum GameResult {
-    None = 0,
-    WinRed = 1,
-    WinBlue = 2,
-    Draw = 3
-}
-
-impl ToString for GameResult {
-    fn to_string(&self) -> String {
-        match self {
-            GameResult::None => String::from("*"),
-            GameResult::WinRed => String::from("1.0"),
-            GameResult::WinBlue => String::from("0.0"),
-            GameResult::Draw => String::from("0.5"),
-        }
-    }
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum GameState {
+    Ongoing = 0,
+    Draw = 1,
+    Won = 2
 }
 
 pub const START_FEN: &str = "x5o/7/7/7/7/7/o5x x 0 1";

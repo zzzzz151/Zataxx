@@ -22,8 +22,6 @@ The exe will be in `target/release`
 
 - bench \<depth\> - runs bench
 
-- gameresult - displays current game result ("*" not over, "1.0" red won, "0.0" red lost, "0.5" draw)
-
 # Features
 
 ### Board

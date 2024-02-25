@@ -5,7 +5,7 @@ mod nnue;
 mod ataxx_move;
 mod board;
 mod perft;
-mod tt;
+mod tt_entry;
 mod datagen;
 mod uai;
 mod search;
@@ -48,7 +48,6 @@ fn main() {
         }
     }
 
-    let mut search_data = SearchData::new(Board::new(START_FEN), 100, 
-                                          U64_MAX, U64_MAX, U64_MAX);
-    uai_loop(&mut search_data);
+    let mut searcher = Searcher::new(Board::new(START_FEN));
+    uai_loop(&mut searcher);
 }

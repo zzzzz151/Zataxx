@@ -26,6 +26,15 @@ pub struct TTEntry {
 
 impl TTEntry
 {
+    pub fn default() -> Self {
+        Self {
+            zobrist_hash: 0,
+            depth: 0,
+            score: 0,
+            move_and_bound: 0
+        }
+    }
+
     pub fn adjusted_score(&self, ply: u8) -> i16
     {
         if self.score >= MIN_WIN_SCORE as i16 { 
@@ -59,40 +68,4 @@ impl TTEntry
     pub fn set_move_and_bound(&mut self, mov: AtaxxMove, bound: Bound) {
         self.move_and_bound = mov.to_u16() | ((bound as u16) << 14);
     }
-}
-
-pub const DEFAULT_TT_SIZE_MB: usize = 32;
-
-pub struct TT {
-    pub entries: Vec<TTEntry>,
-}
-
-impl TT
-{
-    pub fn new(size_mb: usize) -> Self
-    {
-        let num_entries: usize = (size_mb * 1024 * 1024 / std::mem::size_of::<TTEntry>()) as usize;
-        println!("TT size: {} MB ({} entries)", size_mb, num_entries);
-        
-        TT {
-            entries: vec![TTEntry {
-                zobrist_hash: 0,
-                depth: 0,
-                score: 0,
-                move_and_bound: 0,
-            }; num_entries]
-        }
-    }   
-
-    pub fn reset(&mut self)
-    {
-        self.entries = vec![TTEntry {
-                                zobrist_hash: 0,
-                                depth: 0,
-                                score: 0,
-                                move_and_bound: 0,
-                            }; self.entries.len()];
-        //println!("TT reset");
-    }
-
 }
