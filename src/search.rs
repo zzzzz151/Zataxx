@@ -318,7 +318,7 @@ impl Searcher
 
                 let null_window_score = -self.pvs(depth - 1 - lmr, ply + 1, -alpha - 1, -alpha, false);
 
-                if null_window_score > alpha && (null_window_score < beta || lmr > 0) {
+                if null_window_score > alpha && (pv_node || lmr > 0) {
                     -self.pvs(depth - 1, ply + 1, -beta, -alpha, false)
                 } else {
                     null_window_score
