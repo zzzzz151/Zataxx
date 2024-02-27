@@ -249,6 +249,7 @@ impl Searcher
         let mut best_score: i32 = -INFINITY;
         let mut best_move: AtaxxMove = MOVE_NONE;
         let mut bound: Bound = Bound::Upper;
+        //let improving = ply > 1 && eval > self.evals[ply as usize - 2];
 
         for i in 0..(moves.size() as usize)
         {
@@ -309,8 +310,8 @@ impl Searcher
                 // LMR (Late move reductions)
                 let lmr: i32 = if depth >= 3 && i >= 2 
                 {
-                    let mut value: i32 = self.lmr_table[depth as usize][i as usize] as i32;
-                    value -= pv_node as i32; // reduce pv nodes less
+                    let mut value: i32 = self.lmr_table[depth as usize][i+1] as i32;
+                    value -= pv_node as i32;
                     clamp(value, 0, depth - 2) // dont extend and dont reduce into eval
                 } else {
                     0
