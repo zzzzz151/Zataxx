@@ -5,7 +5,6 @@ use crate::types::*;
 use crate::ataxx_move::*;
 use crate::board::*;
 use crate::perft::*;
-use crate::tt_entry::*;
 use crate::search::*;
 use crate::bench::*;
 use crate::datagen::*;
@@ -93,8 +92,8 @@ pub fn setoption(tokens: Vec<&str>, searcher: &mut Searcher)
 
 pub fn uainewgame(searcher: &mut Searcher)
 {
-    searcher.tt = vec![TTEntry::default(); searcher.tt.len()];
-    searcher.killers = vec![MOVE_NONE; searcher.killers.len()];
+    searcher.clear_tt();
+    searcher.clear_killers();
 }
 
 pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)

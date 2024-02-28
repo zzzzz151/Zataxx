@@ -6,7 +6,7 @@ use crate::ataxx_move::*;
 use crate::board::*;
 use crate::tt_entry::*;
 
-pub const DEFAULT_DEPTH: u8 = 100;
+pub const DEFAULT_MAX_DEPTH: u8 = 100;
 pub const DEFAULT_TT_SIZE_MB: usize = 32;
 
 pub struct Searcher {
@@ -19,11 +19,11 @@ pub struct Searcher {
     pub hard_nodes: u64,
     pub nodes: u64,
     pub best_move_root: AtaxxMove,
-    pub root_move_nodes: [u64; 1usize << 12],
-    pub evals: Vec<i32>,
-    pub tt: Vec<TTEntry>,
-    pub lmr_table: Vec<Vec<u8>>,
-    pub killers: Vec<AtaxxMove>
+    root_move_nodes: [u64; 1usize << 12],
+    evals: Vec<i32>,
+    tt: Vec<TTEntry>,
+    lmr_table: Vec<Vec<u8>>,
+    killers: Vec<AtaxxMove>
 }
 
 impl Searcher
@@ -32,7 +32,7 @@ impl Searcher
     {
         let mut searcher = Self {
             board: board,
-            max_depth: DEFAULT_DEPTH,
+            max_depth: DEFAULT_MAX_DEPTH,
             max_ply_reached: 0,
             start_time: Instant::now(),
             milliseconds: U64_MAX,
@@ -41,10 +41,10 @@ impl Searcher
             nodes: 0,
             best_move_root: MOVE_NONE,
             root_move_nodes: [0; 1usize << 12],
-            evals: vec![0; DEFAULT_DEPTH as usize],
+            evals: vec![0; DEFAULT_MAX_DEPTH as usize],
             tt: vec![TTEntry::default(); 0],
-            lmr_table: get_lmr_table(DEFAULT_DEPTH),
-            killers: vec![MOVE_NONE; DEFAULT_DEPTH as usize]
+            lmr_table: get_lmr_table(DEFAULT_MAX_DEPTH),
+            killers: vec![MOVE_NONE; DEFAULT_MAX_DEPTH as usize]
         };
 
         searcher.resize_tt(DEFAULT_TT_SIZE_MB);
@@ -57,6 +57,14 @@ impl Searcher
         self.tt = vec![TTEntry::default(); num_entries];
         assert!(self.tt.len() == num_entries);
         println!("TT size: {} ({} entries)", size_mb, num_entries);
+    }
+
+    pub fn clear_tt(&mut self) { 
+        self.tt = vec![TTEntry::default(); self.tt.len()];
+    }
+
+    pub fn clear_killers(&mut self) {
+        self.killers = vec![MOVE_NONE; self.killers.len()];
     }
 
     pub fn is_hard_time_up(&self) -> bool 
@@ -211,7 +219,7 @@ impl Searcher
 
         let pv_node = beta - alpha > 1;
         let eval = if singular { self.evals[ply as usize] } else { self.board.evaluate() };
-        self.evals[ply as usize] = eval;
+        //self.evals[ply as usize] = eval;
 
         // RFP (Reverse futility pruning)
         if !pv_node && !singular && depth <= 6 
@@ -241,7 +249,7 @@ impl Searcher
                 else {
                     moves_scores[i] = if mov.is_single() { 100 } else { 0 };
                     moves_scores[i] += self.board.num_adjacent_enemies(mov.to);
-                    //moves_scores[i] += (mov == self.killers[ply as usize]) as u8 * 2;
+                    moves_scores[i] += (mov == self.killers[ply as usize]) as u8;
                 }
             }
         }
@@ -350,7 +358,9 @@ impl Searcher
             // Fail high / beta cutoff
 
             bound = Bound::Lower;
-            self.killers[ply as usize] = mov;
+            if mov != MOVE_PASS {
+                self.killers[ply as usize] = mov;
+            }
 
             break; // Fail high / beta cutoff
         }

@@ -10,7 +10,6 @@ use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
 use crate::board::*;
-use crate::tt_entry::*;
 use crate::search::*;
 
 pub fn datagen()
@@ -75,14 +74,14 @@ pub fn datagen()
             }
         }
 
-        searcher.tt = vec![TTEntry::default(); searcher.tt.len()];
+        searcher.clear_tt();
         let mut lines: Vec<String> = Vec::with_capacity(128);
         let mut game_state = GameState::Ongoing;
         let mut winner = Color::None;
 
         // Play out game
         loop {
-            searcher.killers = vec![MOVE_NONE; searcher.killers.len()];
+            searcher.clear_killers();
             let (mov, score) = searcher.search(false);
             assert!(mov != MOVE_NONE);
 
