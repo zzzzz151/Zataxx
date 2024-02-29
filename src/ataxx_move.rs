@@ -28,13 +28,6 @@ impl AtaxxMove
         }
     }
 
-    pub fn from_u16(encoded: u16) -> Self {
-        Self {
-            from: (encoded & 0b0000_0000_0011_1111) as Square,
-            to: (encoded >> 6) as Square
-        }
-    }
-
     pub fn from_uai(uai_move: &str) -> AtaxxMove {
         if uai_move == "0000" {
             return MOVE_PASS;
@@ -53,7 +46,14 @@ impl AtaxxMove
         }
     }
 
-    pub fn to_u16(&self) -> u16 {
+    pub fn from_u12(encoded: u16) -> Self {
+        Self {
+            from: (encoded & 0b0000_0000_0011_1111) as Square,
+            to: (encoded >> 6) as Square
+        }
+    }
+
+    pub fn to_u12(&self) -> u16 {
         self.from as u16 | ((self.to as u16) << 6)
     }
 

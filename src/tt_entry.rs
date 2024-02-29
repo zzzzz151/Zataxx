@@ -47,7 +47,7 @@ impl TTEntry
     }
 
     pub fn get_move(&self) -> AtaxxMove {
-        AtaxxMove::from_u16(self.move_and_bound & 0b0000_1111_1111_1111)
+        AtaxxMove::from_u12(self.move_and_bound & 0b0000_1111_1111_1111)
     }
 
     pub fn get_bound(&self) -> Bound {
@@ -57,7 +57,7 @@ impl TTEntry
 
     pub fn set_move(&mut self, mov: AtaxxMove) {
         self.move_and_bound &= 0b1100_0000_0000_0000;
-        self.move_and_bound |= mov.to_u16();
+        self.move_and_bound |= mov.to_u12();
     }
 
     pub fn set_bound(&mut self, bound: Bound) {
@@ -66,6 +66,6 @@ impl TTEntry
     }
 
     pub fn set_move_and_bound(&mut self, mov: AtaxxMove, bound: Bound) {
-        self.move_and_bound = mov.to_u16() | ((bound as u16) << 14);
+        self.move_and_bound = mov.to_u12() | ((bound as u16) << 14);
     }
 }

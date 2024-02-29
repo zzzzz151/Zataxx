@@ -19,7 +19,7 @@ pub struct Searcher {
     pub hard_nodes: u64,
     pub nodes: u64,
     pub best_move_root: AtaxxMove,
-    root_move_nodes: [u64; 1usize << 12],
+    root_move_nodes: [u64; 1usize << 13],
     evals: Vec<i32>,
     tt: Vec<TTEntry>,
     lmr_table: Vec<Vec<u8>>,
@@ -40,7 +40,7 @@ impl Searcher
             hard_nodes: U64_MAX,
             nodes: 0,
             best_move_root: MOVE_NONE,
-            root_move_nodes: [0; 1usize << 12],
+            root_move_nodes: [0; 1usize << 13],
             evals: vec![0; DEFAULT_MAX_DEPTH as usize],
             tt: vec![TTEntry::default(); 0],
             lmr_table: get_lmr_table(DEFAULT_MAX_DEPTH),
@@ -90,7 +90,7 @@ impl Searcher
             1.0 
         } 
         else {
-            let best_move_nodes = self.root_move_nodes[self.best_move_root.to_u16() as usize];
+            let best_move_nodes = self.root_move_nodes[self.best_move_root.to_u12() as usize];
             best_move_nodes as f64 / self.nodes.max(1) as f64
         };
 
@@ -103,7 +103,7 @@ impl Searcher
     pub fn search(&mut self, print_info: bool) -> (AtaxxMove, i32)
     {
         self.nodes = 0;
-        self.root_move_nodes = [0; 1usize << 12];
+        self.root_move_nodes = [0; 1usize << 13];
         self.best_move_root = MOVE_NONE;
 
         let mut score: i32 = 0;
@@ -337,7 +337,7 @@ impl Searcher
             self.board.undo_move();
 
             if ply == 0 && mov != MOVE_PASS {
-                self.root_move_nodes[mov.to_u16() as usize]
+                self.root_move_nodes[mov.to_u12() as usize]
                     += self.nodes - nodes_before;
             }
 
