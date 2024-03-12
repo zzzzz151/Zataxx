@@ -30,9 +30,9 @@ The exe will be in `target/release`
 - Zobrist hashing
 
 ### NNUE evaluation
-- 147->256x2->1
+- (98->512)x2->1
 - Self-play data
-- SCReLU 181
+- SCReLU activation
 
 ### Search
 - Iterative deepening
@@ -47,6 +47,7 @@ The exe will be in `target/release`
 - Late move reductions
 - Singular extension, negative extension
 - Move ordering: TT move -> singles by captures -> doubles by captures
+- Bonus for killer move
 
 ### Time management
 - Soft and hard limits

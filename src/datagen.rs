@@ -12,6 +12,8 @@ use crate::ataxx_move::*;
 use crate::board::*;
 use crate::search::*;
 
+pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
 pub fn datagen()
 {    
     // Create 'data' folder
@@ -46,7 +48,7 @@ pub fn datagen()
     loop {
         searcher.start_time = Instant::now();
         searcher.board = start_board.clone();
-        let target_plies: u8 = rng.gen_range(16..=21) as u8;
+        let target_plies: u8 = rng.gen_range(14..=19) as u8;
         let mut moves: MovesList = MovesList::default();
 
         loop {
@@ -141,8 +143,6 @@ pub fn datagen()
     }
 
 }
-
-pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 pub fn datagen_openings()
 {
