@@ -223,7 +223,7 @@ impl Searcher
 
         // RFP (Reverse futility pruning)
         if !pv_node && !singular && depth <= 6 
-        && eval >= beta + depth * 75 {
+        && eval >= beta + depth * 50 {
             return eval;
         }
 
