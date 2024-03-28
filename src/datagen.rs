@@ -48,7 +48,7 @@ pub fn datagen()
     loop {
         searcher.start_time = Instant::now();
         searcher.board = start_board.clone();
-        let target_plies: u8 = rng.gen_range(14..=19) as u8;
+        let target_plies: u8 = rng.gen_range(14..=17) as u8;
         let mut moves: MovesList = MovesList::default();
 
         loop {
@@ -88,7 +88,7 @@ pub fn datagen()
             assert!(mov != MOVE_NONE);
 
             // Adjudication
-            if score.abs() >= 2500 {
+            if score.abs() >= 3000 {
                 game_state = GameState::Won;
                 winner = if score > 0 { 
                     searcher.board.state.color 
@@ -99,8 +99,9 @@ pub fn datagen()
                 break;
             }
 
-            lines.push(format!("{} | {}", 
+            lines.push(format!("{} | {} | {}", 
                 searcher.board.fen(), 
+                mov,
                 if searcher.board.state.color == Color::Red {score} else {-score}));
 
             searcher.board.make_move(mov);
