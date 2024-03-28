@@ -1,13 +1,10 @@
-#![allow(dead_code)]
-
 use std::mem;
 use crate::types::*;
-//use crate::utils::*;
 use crate::ataxx_move::*;
 
 #[repr(u8)]
-#[derive(Clone, Copy)]
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum Bound {
     None = 0,
     Exact = 1,
@@ -65,6 +62,7 @@ impl TTEntry
         self.move_and_bound |= (bound as u16) << 14;
     }
 
+    #[allow(dead_code)]
     pub fn set_move_and_bound(&mut self, mov: AtaxxMove, bound: Bound) {
         self.move_and_bound = mov.to_u12() | ((bound as u16) << 14);
     }

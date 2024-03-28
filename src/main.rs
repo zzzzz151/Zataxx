@@ -13,15 +13,8 @@ mod bench;
 mod tests;
 
 use std::env;
-use types::*;
-//use utils::*;
-use board::*;
-//use perft::*;
-use search::*;
 use uai::*;
 use datagen::*;
-
-#[allow(unreachable_code)]
 
 fn main() {
     println!("Zataxx by zzzzz");
@@ -48,6 +41,5 @@ fn main() {
         }
     }
 
-    let mut searcher = Searcher::new(Board::new(START_FEN));
-    uai_loop(&mut searcher);
+    uai_loop();
 }

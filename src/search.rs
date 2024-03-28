@@ -7,21 +7,22 @@ use crate::board::*;
 use crate::tt_entry::*;
 
 pub const DEFAULT_MAX_DEPTH: u8 = 100;
-pub const DEFAULT_TT_SIZE_MB: usize = 32;
+pub const TT_DEFAULT_MB: usize = 32;
 
 pub struct Searcher {
     pub board: Board,
-    pub max_depth: u8,
-    pub max_ply_reached: u8,
-    pub start_time: Instant,
-    pub milliseconds: u64,
-    pub soft_nodes: u64,
-    pub hard_nodes: u64,
-    pub nodes: u64,
-    pub best_move_root: AtaxxMove,
+    max_depth: u8,
+    max_ply_reached: u8,
+    nodes: u64,
+    start_time: Instant,
+    hard_milliseconds: u64,
+    soft_milliseconds: u64,
+    hard_nodes: u64,
+    soft_nodes: u64,
+    best_move_root: AtaxxMove,
     root_move_nodes: [u64; 1usize << 13],
-    evals: Vec<i32>,
     tt: Vec<TTEntry>,
+    evals: Vec<i32>,
     lmr_table: Vec<Vec<u8>>,
     killers: Vec<AtaxxMove>
 }
@@ -34,20 +35,21 @@ impl Searcher
             board: board,
             max_depth: DEFAULT_MAX_DEPTH,
             max_ply_reached: 0,
-            start_time: Instant::now(),
-            milliseconds: U64_MAX,
-            soft_nodes: U64_MAX,
-            hard_nodes: U64_MAX,
             nodes: 0,
+            start_time: Instant::now(),
+            hard_milliseconds: U64_MAX,
+            soft_milliseconds: U64_MAX,
+            hard_nodes: U64_MAX,
+            soft_nodes: U64_MAX,
             best_move_root: MOVE_NONE,
             root_move_nodes: [0; 1usize << 13],
-            evals: vec![0; DEFAULT_MAX_DEPTH as usize],
             tt: vec![TTEntry::default(); 0],
-            lmr_table: get_lmr_table(DEFAULT_MAX_DEPTH),
-            killers: vec![MOVE_NONE; DEFAULT_MAX_DEPTH as usize]
+            evals: vec![0; 256],
+            lmr_table: get_lmr_table(256),
+            killers: vec![MOVE_NONE; 256 as usize]
         };
 
-        searcher.resize_tt(DEFAULT_TT_SIZE_MB);
+        searcher.resize_tt(TT_DEFAULT_MB);
         searcher
     }
 
@@ -55,9 +57,10 @@ impl Searcher
     {
         let num_entries: usize = (size_mb * 1024 * 1024 / std::mem::size_of::<TTEntry>()) as usize;
         self.tt = vec![TTEntry::default(); num_entries];
-        assert!(self.tt.len() == num_entries);
-        println!("TT size: {} ({} entries)", size_mb, num_entries);
+        println!("TT size: {} MB ({} entries)", size_mb, num_entries);
     }
+
+    pub fn get_nodes(&self) -> u64 { self.nodes }
 
     pub fn clear_tt(&mut self) { 
         self.tt = vec![TTEntry::default(); self.tt.len()];
@@ -67,8 +70,16 @@ impl Searcher
         self.killers = vec![MOVE_NONE; self.killers.len()];
     }
 
+    pub fn milliseconds_elapsed(&self) -> u64 {
+        milliseconds_elapsed(self.start_time)
+    }
+
     pub fn is_hard_time_up(&self) -> bool 
     {
+        if self.best_move_root == MOVE_NONE {
+            return false;
+        }
+
         if self.nodes >= self.hard_nodes { 
             return true; 
         }
@@ -77,38 +88,35 @@ impl Searcher
             return false;
         }
 
-        milliseconds_elapsed(self.start_time) >= (self.milliseconds / 2)
+        self.milliseconds_elapsed() >= self.hard_milliseconds
     }
 
-    pub fn is_soft_time_up(&self) -> bool 
+    pub fn search(&mut self, max_depth: u8, milliseconds: i64, increment_ms: u64, is_move_time: bool, 
+        soft_nodes: u64, hard_nodes: u64, print_info: bool) -> (AtaxxMove, i32)
     {
-        if self.nodes >= self.soft_nodes {
-            return true;
+        // init/reset stuff
+        self.start_time = Instant::now();
+        self.max_depth = max_depth;
+        self.soft_nodes = soft_nodes;
+        self.hard_nodes = hard_nodes;
+        self.nodes = 0;
+        self.best_move_root = MOVE_NONE;
+        self.root_move_nodes = [0; 1usize << 13];
+
+        // Set time limits
+        let max_hard_ms: u64 = (milliseconds - 10).max(0) as u64;
+        if is_move_time {
+            self.hard_milliseconds = max_hard_ms;
+            self.soft_milliseconds = U64_MAX;
+        }
+        else {
+            self.hard_milliseconds = max_hard_ms / 2;
+            let soft_milliseconds: f64 = (max_hard_ms as f64 / 20.0 + increment_ms as f64 * 0.6666) * 0.6;
+            self.soft_milliseconds = (soft_milliseconds as u64).min(self.hard_milliseconds);
         }
 
-        let move_nodes_fraction: f64 = if self.best_move_root == MOVE_PASS { 
-            1.0 
-        } 
-        else {
-            let best_move_nodes = self.root_move_nodes[self.best_move_root.to_u12() as usize];
-            best_move_nodes as f64 / self.nodes.max(1) as f64
-        };
-
-        let soft_time_scale = (0.5 + 1.0 - move_nodes_fraction) * 1.5;
-
-        milliseconds_elapsed(self.start_time) 
-        >= ((self.milliseconds as f64 * 0.05 * soft_time_scale) as u64)
-    }
-
-    pub fn search(&mut self, print_info: bool) -> (AtaxxMove, i32)
-    {
-        self.nodes = 0;
-        self.root_move_nodes = [0; 1usize << 13];
-        self.best_move_root = MOVE_NONE;
-
-        let mut score: i32 = 0;
-
         // ID (Iterative deepening)
+        let mut score: i32 = 0;
         for iteration_depth in 1..=self.max_depth 
         {
             self.max_ply_reached = 0;
@@ -116,20 +124,49 @@ impl Searcher
 
             if self.is_hard_time_up() { break; }
 
+            assert!(self.best_move_root != MOVE_NONE);
+
+            let ms_elapsed = self.milliseconds_elapsed();
+
             if print_info {
                 println!("info depth {} seldepth {} score {} time {} nodes {} nps {} pv {}",
                     iteration_depth, 
                     self.max_ply_reached,
                     iteration_score,
-                    milliseconds_elapsed(self.start_time), 
+                    ms_elapsed, 
                     self.nodes,
-                    self.nodes * 1000 / milliseconds_elapsed(self.start_time).max(1) as u64,
+                    self.nodes * 1000 / ms_elapsed.max(1),
                     self.best_move_root);
             }
             
             score = iteration_score;
 
-            if self.is_soft_time_up() { break; }
+            // Check soft nodes
+            if self.nodes >= self.soft_nodes {
+                break;
+            }
+
+            // Stop searching if soft time exceeded
+
+            let updated_soft_milliseconds: u64 = if iteration_depth >= 7 
+            {
+                let best_move_nodes_fraction: f64 = if self.best_move_root == MOVE_PASS { 
+                    1.0 
+                } 
+                else {
+                    self.root_move_nodes[self.best_move_root.to_u12() as usize] as f64 
+                    / self.nodes.max(1) as f64
+                };
+
+                (self.soft_milliseconds as f64 * 1.5 * (1.55 - best_move_nodes_fraction)) as u64
+            }
+            else {
+                self.soft_milliseconds
+            };
+
+            if ms_elapsed >= updated_soft_milliseconds { 
+                break; 
+            }
         }
 
         assert!(self.best_move_root != MOVE_NONE);
@@ -180,6 +217,7 @@ impl Searcher
             self.max_ply_reached = ply as u8;
         }
 
+        // Game over?
         if ply > 0 && !singular {
             let (game_state, winner): (GameState, Color) = self.board.game_state();
 
@@ -194,6 +232,7 @@ impl Searcher
             }
         }
 
+        // Leaf node, return static eval
         if depth <= 0 || ply >= self.max_depth.into() { 
             return self.board.evaluate();
         }
@@ -219,7 +258,7 @@ impl Searcher
 
         let pv_node = beta - alpha > 1;
         let eval = if singular { self.evals[ply as usize] } else { self.board.evaluate() };
-        //self.evals[ply as usize] = eval;
+        self.evals[ply as usize] = eval;
 
         // RFP (Reverse futility pruning)
         if !pv_node && !singular && depth <= 6 
@@ -336,6 +375,7 @@ impl Searcher
 
             self.board.undo_move();
 
+            // At root, update root moves nodes
             if ply == 0 && mov != MOVE_PASS {
                 self.root_move_nodes[mov.to_u12() as usize]
                     += self.nodes - nodes_before;

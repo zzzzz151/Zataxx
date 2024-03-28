@@ -14,17 +14,17 @@ pub const MOVE_PASS: AtaxxMove = AtaxxMove { from: 51, to: 51 };
 
 impl AtaxxMove
 {
-    pub fn double(from: Square, to: Square) -> Self {
-        Self { 
-            from: from,
-            to: to
-        }
-    }
-
     pub const fn single(square: Square) -> Self {
         Self {
             from: square,
             to: square
+        }
+    }
+
+    pub fn double(from: Square, to: Square) -> Self {
+        Self { 
+            from: from,
+            to: to
         }
     }
 
@@ -33,11 +33,13 @@ impl AtaxxMove
             return MOVE_PASS;
         }
 
+        // Single
         if uai_move.len() == 2 {
             let sq: Square = str_to_square(uai_move);
             return Self { from: sq, to: sq };
         }
 
+        // Double
         let str_from = &uai_move[0..2];
         let str_to = &uai_move[uai_move.len() - 2..];
         Self {
@@ -46,6 +48,7 @@ impl AtaxxMove
         }
     }
 
+    // encoded has from to squares in the lowest 12 bits
     pub fn from_u12(encoded: u16) -> Self {
         Self {
             from: (encoded & 0b0000_0000_0011_1111) as Square,
@@ -53,6 +56,7 @@ impl AtaxxMove
         }
     }
 
+    // put from to squares in the lowest 12 bits
     pub fn to_u12(&self) -> u16 {
         self.from as u16 | ((self.to as u16) << 6)
     }

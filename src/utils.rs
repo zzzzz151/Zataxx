@@ -1,5 +1,4 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
+
 
 use std::time::Instant;
 use crate::types::*;
@@ -25,10 +24,12 @@ pub const SQUARE_TO_STR: [&str; 49] = [
     "a7", "b7", "c7", "d7", "e7", "f7", "g7", 
 ];
 
+#[allow(dead_code)]
 pub fn square_rank(sq: Square) -> Rank {
     unsafe { std::mem::transmute((sq / 7) as u8) }
 }
 
+#[allow(dead_code)]
 pub fn square_file(sq: Square) -> File {
     unsafe { std::mem::transmute((sq % 7) as u8) }
 }
@@ -40,10 +41,6 @@ pub fn opp_color(color: Color) -> Color {
         Color::Blue => Color::Red,
         Color::None => Color::None
     }
-}
-
-pub fn lsb(x: u64) -> u8 {
-    (x & (!x + 1)) as u8
 }
 
 pub fn pop_lsb(value: &mut u64) -> u8 {
@@ -63,20 +60,21 @@ pub fn digit_to_char(num: u8) -> char {
     (num + b'0') as char
 }
 
-const ADJACENT_OFFSETS: [[i8; 2]; 8] = [
-    [0, 1], [0, -1], [1,  0], [-1,  0],
-    [1, 1], [1, -1], [-1, 1], [-1, -1]
-];
-
-const LEAP_OFFSETS: [[i8; 2]; 16] = [
-    [0, 2], [0, -2], [2,  0], [-2,  0],
-    [2, 2], [2, -2], [-2, 2], [-2, -2],
-    [1, 2], [1, -2], [-1, 2], [-1, -2],
-    [2, 1], [2, -1], [-2, 1], [-2, -1],
-];
-
+#[allow(dead_code)]
 pub fn get_attacks() -> ([u64; 49], [u64; 49])
 {
+    const ADJACENT_OFFSETS: [[i8; 2]; 8] = [
+        [0, 1], [0, -1], [1,  0], [-1,  0],
+        [1, 1], [1, -1], [-1, 1], [-1, -1]
+    ];
+
+    const LEAP_OFFSETS: [[i8; 2]; 16] = [
+        [0, 2], [0, -2], [2,  0], [-2,  0],
+        [2, 2], [2, -2], [-2, 2], [-2, -2],
+        [1, 2], [1, -2], [-1, 2], [-1, -2],
+        [2, 1], [2, -1], [-2, 1], [-2, -1],
+    ];
+
     let mut adjacent_squares_table: [u64; 49] = [0; 49];
     let mut leap_squares_table: [u64; 49] = [0; 49];
 
@@ -112,6 +110,7 @@ pub fn get_attacks() -> ([u64; 49], [u64; 49])
     return (adjacent_squares_table, leap_squares_table)
 }
 
+#[allow(dead_code)]
 pub fn print_bitboard(bb: u64) {
     // Format as a binary string with the lowest 49 bits
     let bitset = format!("{:049b}", bb);

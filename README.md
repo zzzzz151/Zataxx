@@ -14,29 +14,31 @@ The exe will be in `target/release`
 
 ### Extra commands
 
-- eval - displays current position's evaluation from perspective of side to move
+- eval
 
-- perft \<depth\> - runs perft from current position
+- perft \<depth\>
 
-- perftsplit \<depth\> - runs split perft from current position
+- perftsplit \<depth\>
 
-- bench \<depth\> - runs bench
+- bench \<depth\>
 
 # Features
 
 ### Board
 - Bitboards
-- Make/undo move
+- Copymake make/undo move
 - Zobrist hashing
 
-### NNUE evaluation
+### Evaluation
+- NNUE
 - (98->512)x2->1
 - Self-play data
 - SCReLU activation
 
 ### Search
 - Iterative deepening
-- Principal variation search with fail-soft Negamax
+- Fail-soft negamax
+- Principal variation search
 - Transposition table
 - Alpha-beta pruning
 - Reverse futility pruning
@@ -47,7 +49,7 @@ The exe will be in `target/release`
 - Late move reductions
 - Singular extension, negative extension
 - Move ordering: TT move -> singles by captures -> doubles by captures
-- Bonus for killer move
+- Killer move
 
 ### Time management
 - Soft and hard limits

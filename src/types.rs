@@ -1,9 +1,22 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
-
 pub const U64_MAX: u64 = 18446744073709551615;
+pub const I64_MAX: i64 = 9223372036854775807;
+
+pub const START_FEN: &str = "x5o/7/7/7/7/7/o5x x 0 1";
+pub const INFINITY: i32 = 32000;
+pub const MIN_WIN_SCORE: i32 = 31000;
+
+/*
+42 43 44 45 46 47 48
+35 36 37 38 39 40 41
+28 29 30 31 32 33 34
+21 22 23 24 25 26 27
+14 15 16 17 18 19 20
+ 7  8  9 10 11 12 13
+ 0  1  2  3  4  5  6
+*/
 
 pub type Square = u8;
+#[allow(dead_code)]
 pub const SQUARE_NONE: Square = 255;
 
 #[repr(u8)]
@@ -16,6 +29,7 @@ pub enum Color {
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub enum Rank {
     Rank1 = 0,
     Rank2 = 1,
@@ -28,6 +42,7 @@ pub enum Rank {
 
 #[repr(u8)]
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 pub enum File {
     A = 0,
     B = 1,
@@ -40,18 +55,12 @@ pub enum File {
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Debug)]
+#[allow(dead_code)]
 pub enum GameState {
     Ongoing = 0,
     Draw = 1,
     Won = 2
 }
-
-pub const START_FEN: &str = "x5o/7/7/7/7/7/o5x x 0 1";
-pub const START_FEN_4_BLOCKERS: &str = "x5o/7/2-1-2/7/2-1-2/7/o5x x 0 1";
-
-pub const INFINITY: i32 = 32000;
-pub const MIN_WIN_SCORE: i32 = 31000;
-pub const EVAL_NONE: i32 = INFINITY;
 
 /*
 42 43 44 45 46 47 48
@@ -63,6 +72,7 @@ pub const EVAL_NONE: i32 = INFINITY;
  0  1  2  3  4  5  6
 */
 
+/*
 pub const A1: Square = 0;
 pub const B1: Square = 1;
 pub const C1: Square = 2;
@@ -112,5 +122,5 @@ pub const D7: Square = 45;
 pub const E7: Square = 46;
 pub const F7: Square = 47;
 pub const G7: Square = 48;
-
+*/
 

@@ -1,7 +1,5 @@
 use std::io;
-use std::time::Instant;
 use crate::types::*;
-//use crate::utils::*;
 use crate::ataxx_move::*;
 use crate::board::*;
 use crate::perft::*;
@@ -9,8 +7,10 @@ use crate::search::*;
 use crate::bench::*;
 use crate::datagen::*;
 
-pub fn uai_loop(searcher: &mut Searcher)
+pub fn uai_loop()
 {
+    let mut searcher: Searcher = Searcher::new(Board::new(START_FEN));
+
     loop
     {
         let mut input = String::new();
@@ -25,23 +25,23 @@ pub fn uai_loop(searcher: &mut Searcher)
             "uai" => {
                 println!("id name Zataxx");
                 println!("id author zzzzz");
-                println!("option name Hash type spin default {} min 1 max 1024", DEFAULT_TT_SIZE_MB);
+                println!("option name Hash type spin default {} min 1 max 1024", TT_DEFAULT_MB);
                 println!("uaiok");
             }
             "setoption" => { 
-                setoption(input_split, searcher);
+                setoption(input_split, &mut searcher);
             }
             "isready" => { 
                 println!("readyok"); 
             }
             "uainewgame" => { 
-                uainewgame(searcher);
+                uainewgame(&mut searcher);
             }
             "position" => { 
-                position(input_split, searcher);
+                position(input_split, &mut searcher.board);
              }
             "go" => { 
-                go(input_split, searcher);
+                go(input_split, &mut searcher);
              }
             "d" | "display" | "print" | "show" => { 
                 searcher.board.print(); 
@@ -58,7 +58,13 @@ pub fn uai_loop(searcher: &mut Searcher)
                 perft_split(&searcher.board.fen(), depth);
             }
             "bench" => {
-                let depth: u8 = input_split[1].parse::<u8>().unwrap();
+                let depth: u8 = if input_split.len() == 2 { 
+                    input_split[1].parse::<u8>().unwrap() 
+                }
+                else {
+                    DEFAULT_BENCH_DEPTH
+                };
+
                 bench(depth);
             }
             "makemove" => {
@@ -96,11 +102,11 @@ pub fn uainewgame(searcher: &mut Searcher)
     searcher.clear_killers();
 }
 
-pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)
+pub fn position(tokens: Vec<&str>, board: &mut Board)
 {
     // apply fen
     if tokens[1] == "startpos" {
-       searcher.board = Board::new(START_FEN);
+       *board = Board::new(START_FEN);
     }
     else if tokens[1] == "fen"
     {
@@ -113,7 +119,7 @@ pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)
             fen.push(' ');
         }
         fen.pop(); // remove last whitespace
-        searcher.board = Board::new(&fen);
+        *board = Board::new(&fen);
     }
 
     // apply moves if any
@@ -121,7 +127,7 @@ pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)
     {
         if token == &"moves" {
             for j in (i+3)..tokens.len() {
-                searcher.board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
+                board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
             }
             break;
         }
@@ -130,8 +136,11 @@ pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)
 
 pub fn go(tokens: Vec<&str>, searcher: &mut Searcher)
 {
-    searcher.start_time = Instant::now();
-    searcher.milliseconds = U64_MAX;
+    let mut milliseconds: i64 = I64_MAX;
+    let mut increment_ms: u64 = 0;
+    let mut is_move_time = false;
+    let mut depth = DEFAULT_MAX_DEPTH;
+    let mut nodes = U64_MAX;
 
     let mut is_wtime_btime: bool = true;
     for i in (1..tokens.len()).step_by(2) {
@@ -149,12 +158,33 @@ pub fn go(tokens: Vec<&str>, searcher: &mut Searcher)
         && ((is_wtime_btime && searcher.board.state.color == Color::Red)
         || (!is_wtime_btime && searcher.board.state.color == Color::Blue)))
         {
-            searcher.milliseconds = tokens[i+1].parse().unwrap();
-            break;
+            milliseconds = tokens[i+1].parse().unwrap();
+        }
+        else if (tokens[i] == "rinc" && searcher.board.state.color == Color::Red)
+        || (tokens[i] == "winc" && searcher.board.state.color == Color::Blue)
+        || (tokens[i] == "binc" 
+        && ((is_wtime_btime && searcher.board.state.color == Color::Red)
+        || (!is_wtime_btime && searcher.board.state.color == Color::Blue)))
+        {
+            increment_ms = tokens[i+1].parse().unwrap();
+        }
+        else if tokens[i] == "movetime" {
+            is_move_time = true;
+            milliseconds = tokens[i+1].parse().unwrap();
+        }
+        else if tokens[i] == "depth" {
+            depth = tokens[i+1].parse::<i64>().unwrap().clamp(0, 255) as u8;
+        }
+        else if tokens[i] == "nodes" {
+            nodes = tokens[i+1].parse().unwrap();
         }
     }
 
-    searcher.search(true);
-    assert!(searcher.best_move_root != MOVE_NONE);
-    println!("bestmove {}", searcher.best_move_root);
+    if is_move_time { increment_ms = 0; }
+
+    let best_move = searcher.search(depth, milliseconds, increment_ms, 
+                        is_move_time, U64_MAX, nodes, true).0;
+
+    assert!(best_move != MOVE_NONE);
+    println!("bestmove {}", best_move);
 }

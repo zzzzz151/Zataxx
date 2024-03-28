@@ -1,9 +1,9 @@
-//use std::time::Instant;
 use crate::types::*;
-use crate::utils::*;
 use crate::board::*;
 use crate::search::*;
 use crate::uai::*;
+
+pub const DEFAULT_BENCH_DEPTH: u8 = 14;
 
 const FENS: [&str; 17] = [
     "7/7/7/7/-------/-------/r5b r 0 1",
@@ -29,7 +29,6 @@ pub fn bench(depth: u8) {
     println!("Running bench depth {}", depth);
 
     let mut searcher = Searcher::new(Board::new(START_FEN));
-    searcher.max_depth = depth;
     let mut nodes: u64 = 0;
     let mut milliseconds: u64 = 0;
 
@@ -37,9 +36,11 @@ pub fn bench(depth: u8) {
     {
         searcher.board = Board::new(fen);
         assert!(searcher.board.game_state().0 == GameState::Ongoing);
-        searcher.search(false);
-        nodes += searcher.nodes;
-        milliseconds += milliseconds_elapsed(searcher.start_time);
+
+        searcher.search(depth, I64_MAX, 0, true, U64_MAX, U64_MAX, false);
+        milliseconds += searcher.milliseconds_elapsed();
+        nodes += searcher.get_nodes();
+
         uainewgame(&mut searcher);
     }
 

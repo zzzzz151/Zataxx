@@ -1,5 +1,3 @@
-#![allow(unused_assignments)]
-
 use rand::Rng;
 use std::time::Instant;
 use std::fs::File;
@@ -15,8 +13,15 @@ use crate::search::*;
 pub const CHARACTERS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 pub fn datagen()
-{    
-    // Create 'data' folder
+{   
+    pub const MIN_PLIES: u8 = 14;
+    pub const MAX_PLIES: u8 = 17;
+    pub const SOFT_NODES: u64 = 5000;
+    pub const HARD_NODES: u64 = 1_000_000;
+    pub const MAX_OPENING_SCORE: i32 = 200;
+    pub const ADJUDICATION_SCORE: i32 = 4000;
+
+    // Create 'data' folder if doesnt exist
     let _ = fs::create_dir_all("data");
 
     // random file name
@@ -37,8 +42,6 @@ pub fn datagen()
 
     let start_board: Board = Board::new(START_FEN);
     let mut searcher = Searcher::new(start_board.clone());
-    searcher.soft_nodes = 5000;
-    searcher.hard_nodes = 1_000_000;
 
     let mut rng = rand::thread_rng();
     let mut positions_written: u64 = 0;
@@ -46,49 +49,57 @@ pub fn datagen()
 
     // Infinite loop
     loop {
-        searcher.start_time = Instant::now();
         searcher.board = start_board.clone();
-        let target_plies: u8 = rng.gen_range(14..=19) as u8;
+        let num_random_plies: u8 = rng.gen_range(MIN_PLIES..=MAX_PLIES) as u8;
         let mut moves: MovesList = MovesList::default();
 
+        // This loop gets a random opening
         loop {
             // Generate moves and make a random one
             searcher.board.moves(&mut moves);
             let random_index = rng.gen_range(0..moves.size());
             searcher.board.make_move(moves[random_index as usize]);
 
+            // If pass move or game over, restart from start pos
             if moves[0] == MOVE_PASS || searcher.board.game_state().0 != GameState::Ongoing
             {
                 searcher.board = start_board.clone();
                 continue;
             }
 
-            if searcher.board.states.len() == target_plies.into() 
+            // If we made enough random moves
+            if searcher.board.states.len() == num_random_plies.into() 
             { 
                 // Skip very unbalanced openings
+
                 uainewgame(&mut searcher);
-                let score = searcher.search(false).1;
-                if score.abs() >= 200 { 
+
+                let score = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
+                                true, SOFT_NODES, HARD_NODES, false).1;
+
+                if score.abs() > MAX_OPENING_SCORE { 
                     searcher.board = start_board.clone();
                     continue;
                 }
+
                 break;
             }
         }
 
         searcher.clear_tt();
         let mut lines: Vec<String> = Vec::with_capacity(128);
-        let mut game_state = GameState::Ongoing;
-        let mut winner = Color::None;
+        let mut game_state: GameState;
+        let mut winner: Color;
 
         // Play out game
         loop {
             searcher.clear_killers();
-            let (mov, score) = searcher.search(false);
+            let (mov, score) = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
+                                   true, SOFT_NODES, HARD_NODES, false);
             assert!(mov != MOVE_NONE);
 
             // Adjudication
-            if score.abs() >= 2500 {
+            if score.abs() >= ADJUDICATION_SCORE {
                 game_state = GameState::Won;
                 winner = if score > 0 { 
                     searcher.board.state.color 
@@ -99,11 +110,15 @@ pub fn datagen()
                 break;
             }
 
-            lines.push(format!("{} | {}", 
+            // <fen> | <move uai> | <score red/black pov>
+            lines.push(format!("{} | {} | {}", 
                 searcher.board.fen(), 
+                mov,
                 if searcher.board.state.color == Color::Red {score} else {-score}));
 
             searcher.board.make_move(mov);
+
+            // if game over, break
             (game_state, winner) = searcher.board.game_state();
             if game_state != GameState::Ongoing {
                 break;
@@ -115,6 +130,7 @@ pub fn datagen()
             assert!(winner != Color::None);
         }
 
+        // Skip 100 ply draws since they are bad data
         if searcher.board.state.plies_since_single >= 100 {
             continue;
         }
@@ -122,6 +138,7 @@ pub fn datagen()
         // Write data from this game to file
         for i in 0..lines.len() 
         {
+            // Append "| <wdl red/black pov>" to the line
             let line = format!("{} | {}\n", 
                 lines[i], 
                 if winner == Color::Red {
@@ -132,6 +149,7 @@ pub fn datagen()
                     "0.5"
                 });
 
+            // Write line to file
             let _ = file.write_all(line.as_bytes());
         }
 
@@ -146,7 +164,12 @@ pub fn datagen()
 
 pub fn datagen_openings()
 {
-    // Create 'data' folder
+    pub const PLY: usize = 8;
+    pub const SOFT_NODES: u64 = 1_000_000;
+    pub const HARD_NODES: u64 = 100_000_000;
+    pub const MAX_OPENING_SCORE: i32 = 3;
+
+    // Create 'data' folder if doesnt exist
     let _ = fs::create_dir_all("data");
 
     // random file name
@@ -167,31 +190,31 @@ pub fn datagen_openings()
 
     let start_board: Board = Board::new(START_FEN);
     let mut searcher = Searcher::new(start_board.clone());
-    searcher.soft_nodes = 1_000_000;
-    searcher.hard_nodes = 100_000_000;
 
     let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(1024);
     let mut rng = rand::thread_rng();
-    let target_ply: usize = 8;
     let mut moves: MovesList = MovesList::default();
 
+    // Inifnite loop
     loop {
         searcher.board = start_board.clone();
 
-        // Get a random opening with target_ply plies
+        // This loop gets a random opening with PLY plies
         loop {
             // Generate moves and make a random one
             searcher.board.moves(&mut moves);
             let random_index = rng.gen_range(0..moves.size()) as usize;
             searcher.board.make_move(moves[random_index]);  
 
+            // If must pass or game over, restart from start pos
             if searcher.board.game_state().0 != GameState::Ongoing
             || searcher.board.must_pass() {
                 searcher.board = start_board.clone();
                 continue;
             }
 
-            if searcher.board.states.len() == target_ply {
+            // If we made enough moves, break
+            if searcher.board.states.len() == PLY {
                 break;
             }
         }
@@ -199,17 +222,19 @@ pub fn datagen_openings()
         assert!(searcher.board.game_state().0 == GameState::Ongoing);
         assert!(!searcher.board.must_pass());
 
+        // Skip opening if already found before
         if zobrist_hashes_written.contains(&(searcher.board.state.zobrist_hash)) { 
             continue;
         }     
 
         uainewgame(&mut searcher);
-        searcher.start_time = Instant::now();
-        let score = searcher.search(false).1;
+        let score = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
+                        true, SOFT_NODES, HARD_NODES, false).1;
 
-        if score.abs() <= 1 {
+        if score.abs() <= MAX_OPENING_SCORE 
+        {
+            // Write fen to file and save zobrist hash
             let line: String = searcher.board.fen() + "\n";
-            //print!("Writing opening {}", line);
             let _ = file.write_all(line.as_bytes());
             zobrist_hashes_written.push(searcher.board.state.zobrist_hash);
             println!("{} | Openings written: {}", file_path, zobrist_hashes_written.len());

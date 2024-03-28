@@ -13,7 +13,7 @@ pub const PST: [i16; 49] = [
 ];
 */
 
-pub fn get_lmr_table(mut max_depth: u8) -> Vec<Vec<u8>> 
+pub fn get_lmr_table(mut max_depth: u16) -> Vec<Vec<u8>> 
 {
     max_depth += 1;
     let mut table = vec![vec![0; 256]; max_depth as usize];

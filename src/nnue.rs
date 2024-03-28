@@ -73,8 +73,7 @@ pub fn evaluate(color: Color, accumulator: &Accumulator) -> i32
         opp_acc = &accumulator.red;
     }
 
-    #[allow(unused_assignments)]
-    let mut sum: i32 = 0;
+    let sum: i32;
 
     #[cfg(not(target_feature = "avx2"))]
     {
