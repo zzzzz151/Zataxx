@@ -103,8 +103,8 @@ impl Board
             for file in 0..=6
             {   
                 let square = rank * 7 + file;
-                let piece = self.at(square);
-                if piece != '.' {
+                let piece: char = self.piece_at(square);
+                if piece != ' ' {
                     if empty_so_far > 0 {
                         my_fen.push(digit_to_char(empty_so_far));
                         empty_so_far = 0;
@@ -151,29 +151,21 @@ impl Board
             self.state.accumulator.deactivate(color, sq);
         }
     }
-
-    pub fn print(&self) {
-        let mut result = String::new();
-
-        for rank in (0..=6).rev() {
-            result.push(digit_to_char(rank+1));
-            result.push(' ');
-            for file in 0..=6 {
-                let square = rank * 7 + file;
-                result.push(self.at(square as u8));
-                result.push(' ');
-            }
-            result.push('\n');
+   
+    pub fn color_at(&self, sq: Square) -> Color
+    {
+        let sq_bb: u64 = 1u64 << sq as u8;
+        if (self.state.bitboards[Color::Red as usize] & sq_bb) > 0 {
+            Color::Red
+        } else if (self.state.bitboards[Color::Blue as usize] & sq_bb) > 0 {
+            Color::Blue
         }
-        result.pop(); // remove last new line
-
-        println!("{}", result);
-        println!("  A B C D E F G");
-        println!("{}", self.fen());
-        println!("Zobrist hash: {}", self.state.zobrist_hash);
+        else {
+            Color::None
+        }
     }
 
-    pub fn at(&self, sq: Square) -> char
+    pub fn piece_at(&self, sq: Square) -> char
     {
         let sq_bb: u64 = 1u64 << sq as u8;
         if self.is_square_blocked(sq) {
@@ -183,7 +175,7 @@ impl Board
         } else if (self.state.bitboards[Color::Blue as usize] & sq_bb) > 0 {
             'o'
         } else {
-            '.'
+            ' '
         }
     }
 

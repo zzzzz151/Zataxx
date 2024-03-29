@@ -43,9 +43,61 @@ pub fn uai_loop()
             "go" => { 
                 go(input_split, &mut searcher);
              }
-            "d" | "display" | "print" | "show" => { 
-                searcher.board.print(); 
-            }
+             "d" | "display" | "print" | "show" => 
+             {
+                uainewgame(&mut searcher);
+
+                let score = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
+                                true, 100_000, 1_000_000, false).1 as i64;
+
+                uainewgame(&mut searcher);
+
+                println!("+-------+-------+-------+-------+-------+-------+-------+");
+
+                for row_idx in (0..=6).rev() {
+                    println!("|       |       |       |       |       |       |       |");
+
+                    print!("|");
+                    for col_idx in 0..=6 
+                    {
+                        let sq: Square = (row_idx * 7 + col_idx) as Square;
+                        let piece: char = searcher.board.piece_at(sq);
+                        print!("   {}   |", piece);    
+                    }
+                    println!(" {}", row_idx + 1);
+
+                    print!("|");
+                    for col_idx in 0..=6 
+                    {
+                        let sq: Square = (row_idx * 7 + col_idx) as Square;
+                        let piece_color: Color = searcher.board.color_at(sq);
+                        if piece_color == Color::None {
+                            print!("       |");
+                        }
+                        else {
+                            searcher.board.remove_piece(piece_color, sq);
+
+                            let score_no_piece = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
+                                                     true, 100_000, 1_000_000, false).1 as i64;
+
+                            uainewgame(&mut searcher);
+
+                            print!("{:^7}|", score - score_no_piece);
+
+                            searcher.board.place_piece(piece_color, sq);
+                        }
+                    }
+                    println!();
+
+                    println!("+-------+-------+-------+-------+-------+-------+-------+");
+                }
+
+                println!("    A       B       C       D       E       F       G");
+                println!();
+                println!("Fen: {}", searcher.board.fen());
+                println!("Zobrist hash: {}", searcher.board.state.zobrist_hash);
+                println!("Eval: {} ", searcher.board.evaluate());
+             }
             "eval" | "evaluate" | "evaluation" => {
                 println!("eval {}", searcher.board.evaluate());
             }
