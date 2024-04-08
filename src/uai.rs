@@ -152,6 +152,7 @@ pub fn uainewgame(searcher: &mut Searcher)
 {
     searcher.clear_tt();
     searcher.clear_killers();
+    searcher.clear_history();
 }
 
 pub fn position(tokens: Vec<&str>, board: &mut Board)

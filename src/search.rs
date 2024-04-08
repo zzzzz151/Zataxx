@@ -8,6 +8,7 @@ use crate::tt_entry::*;
 
 pub const DEFAULT_MAX_DEPTH: u8 = 100;
 pub const TT_DEFAULT_MB: usize = 32;
+pub const HISTORY_MAX: i32 = 16384;
 
 pub struct Searcher {
     pub board: Board,
@@ -24,7 +25,8 @@ pub struct Searcher {
     tt: Vec<TTEntry>,
     evals: Vec<i32>,
     lmr_table: Vec<Vec<u8>>,
-    killers: Vec<AtaxxMove>
+    killers: Vec<AtaxxMove>,
+    history: [[[i32; 49]; 49]; 2] // [color][move.from][move.to]
 }
 
 impl Searcher
@@ -46,7 +48,8 @@ impl Searcher
             tt: vec![TTEntry::default(); 0],
             evals: vec![0; 256],
             lmr_table: get_lmr_table(256),
-            killers: vec![MOVE_NONE; 256 as usize]
+            killers: vec![MOVE_NONE; 256 as usize],
+            history: [[[0; 49]; 49]; 2] 
         };
 
         searcher.resize_tt(TT_DEFAULT_MB);
@@ -68,6 +71,10 @@ impl Searcher
 
     pub fn clear_killers(&mut self) {
         self.killers = vec![MOVE_NONE; self.killers.len()];
+    }
+
+    pub fn clear_history(&mut self) {
+        self.history = [[[0; 49]; 49]; 2];
     }
 
     pub fn milliseconds_elapsed(&self) -> u64 {
@@ -273,22 +280,25 @@ impl Searcher
             depth -= 1;
         }
 
+        let stm: usize = self.board.state.color as usize;
+
         // Generate moves
         let mut moves: MovesList = MovesList::default();
         self.board.moves(&mut moves);
 
         // Score moves
-        let mut moves_scores: [u8; 256] = [0; 256];
+        let mut moves_scores: [i32; 256] = [0; 256];
         if moves.size() > 1 {
             for i in 0..(moves.size() as usize) { 
                 let mov: AtaxxMove = moves[i];
                 if mov == tt_move {
-                    moves_scores[i] = 255;
+                    moves_scores[i] = I32_MAX;
                 }
                 else {
-                    moves_scores[i] = if mov.is_single() { 100 } else { 0 };
-                    moves_scores[i] += self.board.num_adjacent_enemies(mov.to);
-                    moves_scores[i] += (mov == self.killers[ply as usize]) as u8;
+                    moves_scores[i] = mov.is_single() as i32 * 2;
+                    moves_scores[i] += self.board.num_adjacent_enemies(mov.to) as i32;
+                    moves_scores[i] *= HISTORY_MAX + 1;
+                    moves_scores[i] += self.history[stm][mov.from as usize][mov.to as usize];
                 }
             }
         }
@@ -308,7 +318,7 @@ impl Searcher
             if ply > 0 && best_score > -MIN_WIN_SCORE
             {
                 // LMP (Late move pruning)
-                if move_score == 0 && i >= 2 {
+                if move_score < HISTORY_MAX && i >= 2 {
                     break;
                 }
 
@@ -400,6 +410,11 @@ impl Searcher
             bound = Bound::Lower;
             if mov != MOVE_PASS {
                 self.killers[ply as usize] = mov;
+
+                let move_history =  &mut self.history[stm][mov.from as usize][mov.to as usize];
+                let bonus: i32 = depth * depth;
+                *move_history += bonus - bonus * *move_history / HISTORY_MAX;
+                assert!(*move_history <= HISTORY_MAX);
             }
 
             break; // Fail high / beta cutoff

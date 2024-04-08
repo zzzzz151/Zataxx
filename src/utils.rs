@@ -132,7 +132,7 @@ pub fn milliseconds_elapsed(start_time: Instant) -> u64 {
     now.duration_since(start_time).as_millis() as u64
 }
 
-pub fn incremental_sort(moves: &mut MovesList, moves_scores: &mut [u8; 256], i: usize) -> (AtaxxMove, u8)
+pub fn incremental_sort(moves: &mut MovesList, moves_scores: &mut [i32; 256], i: usize) -> (AtaxxMove, i32)
 {
     for j in ((i+1) as usize)..(moves.size() as usize) {
         if moves_scores[j] > moves_scores[i] {

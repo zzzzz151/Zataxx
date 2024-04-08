@@ -86,7 +86,7 @@ pub fn datagen()
             }
         }
 
-        searcher.clear_tt();
+        uainewgame(&mut searcher);
         let mut lines: Vec<String> = Vec::with_capacity(128);
         let mut game_state: GameState;
         let mut winner: Color;

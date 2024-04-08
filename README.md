@@ -48,8 +48,7 @@ The exe will be in `target/release`
 - Internal iterative reduction
 - Late move reductions
 - Singular extension, negative extension
-- Move ordering: TT move -> singles by captures -> doubles by captures
-- Killer move
+- Move ordering: TT move then most captures, equal captures ordered by history
 
 ### Time management
 - Soft and hard limits

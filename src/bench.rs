@@ -3,7 +3,7 @@ use crate::board::*;
 use crate::search::*;
 use crate::uai::*;
 
-pub const DEFAULT_BENCH_DEPTH: u8 = 14;
+pub const DEFAULT_BENCH_DEPTH: u8 = 16;
 
 const FENS: [&str; 17] = [
     "7/7/7/7/-------/-------/r5b r 0 1",
