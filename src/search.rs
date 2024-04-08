@@ -297,7 +297,7 @@ impl Searcher
                 else {
                     moves_scores[i] = mov.is_single() as i32 * 2;
                     moves_scores[i] += self.board.num_adjacent_enemies(mov.to) as i32;
-                    moves_scores[i] *= HISTORY_MAX + 1;
+                    moves_scores[i] *= 100_000;
                     moves_scores[i] += self.history[stm][mov.from as usize][mov.to as usize];
                 }
             }
@@ -408,16 +408,26 @@ impl Searcher
             // Fail high / beta cutoff
 
             bound = Bound::Lower;
-            if mov != MOVE_PASS {
-                self.killers[ply as usize] = mov;
 
-                let move_history =  &mut self.history[stm][mov.from as usize][mov.to as usize];
-                let bonus: i32 = depth * depth;
-                *move_history += bonus - bonus * *move_history / HISTORY_MAX;
-                assert!(*move_history <= HISTORY_MAX);
+            if mov == MOVE_PASS { break; }
+
+            self.killers[ply as usize] = mov; // This move is now a killer move
+
+            let mut move_history =  &mut self.history[stm][mov.from as usize][mov.to as usize];
+            let bonus: i32 = depth * depth;
+
+            // Increase this move's history
+            *move_history += bonus - bonus * *move_history / HISTORY_MAX;
+            assert!(*move_history >= -HISTORY_MAX && *move_history <= HISTORY_MAX);
+
+            // History malus: decrease history of tried moves
+            for j in 0..i {
+                move_history =  &mut self.history[stm][moves[j].from as usize][moves[j].to as usize];
+                *move_history += -bonus - bonus * *move_history / HISTORY_MAX;
+                assert!(*move_history >= -HISTORY_MAX && *move_history <= HISTORY_MAX);
             }
 
-            break; // Fail high / beta cutoff
+            break;
         }
 
         // Store in TT
