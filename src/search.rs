@@ -367,9 +367,13 @@ impl Searcher
                 // LMR (Late move reductions)
                 let lmr: i32 = if depth >= 3 && i >= 2 
                 {
-                    let mut value: i32 = self.lmr_table[depth as usize][i+1] as i32;
-                    value -= pv_node as i32;
-                    clamp(value, 0, depth - 2) // dont extend and dont reduce into eval
+                    (self.lmr_table[depth as usize][i+1] as i32
+                    // reduce pv nodes less
+                    - pv_node as i32
+                    // reduce moves with good history less and vice versa
+                    - self.history[stm][mov.from as usize][mov.to as usize] / 8192)
+                    // dont extend or drop into static eval
+                    .clamp(0, depth - 2)
                 } else {
                     0
                 };
@@ -413,10 +417,9 @@ impl Searcher
 
             self.killers[ply as usize] = mov; // This move is now a killer move
 
+            // Increase this move's history
             let mut move_history =  &mut self.history[stm][mov.from as usize][mov.to as usize];
             let bonus: i32 = depth * depth;
-
-            // Increase this move's history
             *move_history += bonus - bonus * *move_history / HISTORY_MAX;
             assert!(*move_history >= -HISTORY_MAX && *move_history <= HISTORY_MAX);
 
