@@ -5,7 +5,7 @@ use crate::uai::*;
 
 pub const DEFAULT_BENCH_DEPTH: u8 = 16;
 
-const FENS: [&str; 17] = [
+const FENS: [&str; 18] = [
     "7/7/7/7/-------/-------/r5b r 0 1",
     "7/7/7/7/-------/-------/r5b b 0 1",
     "r5b/7/2-1-2/7/2-1-2/7/b5r r 0 1",
@@ -22,7 +22,8 @@ const FENS: [&str; 17] = [
     "7/7/7/7/bbbbbbb/bbbbbbb/rrrrrrr r 0 1",
     "7/7/7/7/rrrrrrr/rrrrrrr/bbbbbbb b 0 1",
     "7/7/7/7/bbbbbbb/bbbbbbb/rrrrrrr b 0 1",
-    "7/7/7/7/rrrrrrr/rrrrrrr/bbbbbbb r 0 1"
+    "7/7/7/7/rrrrrrr/rrrrrrr/bbbbbbb r 0 1",
+    "1o1o1o1/2o4/7/1x5/2x4/7/o6 x 0 5"
 ];
 
 pub fn bench(depth: u8) {

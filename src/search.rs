@@ -2,6 +2,8 @@ use std::time::Instant;
 use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
+use arrayvec::ArrayVec;
+use crate::nnue::*;
 use crate::board::*;
 use crate::tt_entry::*;
 use crate::tunable_params;
@@ -38,6 +40,7 @@ tunable_params! {
 
 pub struct Searcher {
     pub board: Board,
+    pub accumulator: Accumulator,
     max_depth: u8,
     max_ply_reached: u8,
     nodes: u64,
@@ -60,7 +63,8 @@ impl Searcher
     pub fn new(board: Board) -> Self 
     {
         let mut searcher = Self {
-            board: board,
+            board: board.clone(),
+            accumulator: Accumulator::new(board.bitboards()),
             max_depth: DEFAULT_MAX_DEPTH,
             max_ply_reached: 0,
             nodes: 0,
@@ -93,11 +97,16 @@ impl Searcher
         }
     }
 
-    pub fn resize_tt(&mut self, size_mb: usize) 
+    pub fn resize_tt(&mut self, size_mb: usize)
     {
         let num_entries: usize = (size_mb * 1024 * 1024 / std::mem::size_of::<TTEntry>()) as usize;
         self.tt = vec![TTEntry::default(); num_entries];
-        println!("TT size: {} MB ({} entries)", size_mb, num_entries);
+    }
+
+    pub fn print_tt_size(&self) {
+        let size_bytes: usize = self.tt.len() * std::mem::size_of::<TTEntry>();
+        let size_mb: f64 = size_bytes as f64 / (1024.0 * 1024.0);
+        println!("TT size: {} MB ({} entries)", size_mb.round(), self.tt.len());    
     }
 
     pub fn get_nodes(&self) -> u64 { self.nodes }
@@ -238,7 +247,7 @@ impl Searcher
             if game_state == GameState::Draw { return 0 };
 
             if winner != Color::None {
-                return if winner == self.board.state.color {
+                return if winner == self.board.side_to_move() {
                     INFINITY - ply
                 } else {
                     -INFINITY + ply
@@ -248,7 +257,7 @@ impl Searcher
 
         // Leaf node, return static eval
         if depth <= 0 || ply >= self.max_depth.into() { 
-            return self.board.evaluate();
+            return evaluate(self.board.side_to_move(), &mut self.accumulator, self.board.bitboards());
         }
 
         if depth > self.max_depth.into() { 
@@ -256,9 +265,9 @@ impl Searcher
         }
 
         // Probe TT
-        let tt_entry_index = self.board.state.zobrist_hash as usize % self.tt.len();
+        let tt_entry_index = self.board.zobrist_hash() as usize % self.tt.len();
         let tt_entry: &TTEntry = &self.tt[tt_entry_index];
-        let tt_hit: bool = self.board.state.zobrist_hash == tt_entry.zobrist_hash;
+        let tt_hit: bool = self.board.zobrist_hash() == tt_entry.zobrist_hash;
 
         // TT cutoff
         if tt_hit 
@@ -273,7 +282,12 @@ impl Searcher
         }
 
         let pv_node = beta - alpha > 1;
-        let eval = if singular { self.evals[ply as usize] } else { self.board.evaluate() };
+
+        let eval = if singular { 
+            self.evals[ply as usize] 
+        } else { 
+            evaluate(self.board.side_to_move(), &mut self.accumulator, self.board.bitboards())
+        };
         self.evals[ply as usize] = eval;
 
         // RFP (Reverse futility pruning)
@@ -291,27 +305,31 @@ impl Searcher
             depth -= 1;
         }
 
-        let stm: usize = self.board.state.color as usize;
+        let stm: usize = self.board.side_to_move() as usize;
 
         // Generate moves
-        let mut moves: MovesList = MovesList::default();
+        let mut moves = ArrayVec::<AtaxxMove, 256>::new();
         self.board.moves(&mut moves);
 
         // Score moves
-        let mut moves_scores: [i32; 256] = [0; 256];
-        if moves.size() > 1 {
-            for i in 0..(moves.size() as usize) { 
+        let mut moves_scores = ArrayVec::<i32, 256>::new();
+        if moves.len() > 1 {
+            for i in 0..(moves.len() as usize) { 
                 let mov: AtaxxMove = moves[i];
                 if mov == tt_move {
-                    moves_scores[i] = I32_MAX;
+                    moves_scores.push(I32_MAX);
                 }
                 else {
-                    moves_scores[i] = mov.is_single() as i32 * 2;
-                    moves_scores[i] += self.board.num_adjacent_enemies(mov.to) as i32;
-                    moves_scores[i] *= 1_000_000;
-                    moves_scores[i] += self.history[stm][mov.from as usize][mov.to as usize];
+                    let mut move_score: i32 = mov.is_single() as i32 * 2;
+                    move_score += self.board.num_adjacent_enemies(mov.to) as i32;
+                    move_score *= 1_000_000;
+                    move_score += self.history[stm][mov.from as usize][mov.to as usize];
+                    moves_scores.push(move_score);
                 }
             }
+        }
+        else {
+            moves_scores.push(0);
         }
 
         let mut best_score: i32 = -INFINITY;
@@ -319,7 +337,7 @@ impl Searcher
         let mut bound: Bound = Bound::Upper;
         //let improving = ply > 1 && eval > self.evals[ply as usize - 2];
 
-        for i in 0..(moves.size() as usize)
+        for i in 0..(moves.len() as usize)
         {
             let (mov, move_score) = incremental_sort(&mut moves, &mut moves_scores, i);
 
@@ -453,7 +471,7 @@ impl Searcher
         if !singular
         {
             let tt_entry: &mut TTEntry = &mut self.tt[tt_entry_index];
-            tt_entry.zobrist_hash = self.board.state.zobrist_hash;
+            tt_entry.zobrist_hash = self.board.zobrist_hash();
             tt_entry.depth = depth as u8;
 
             tt_entry.score = if best_score >= MIN_WIN_SCORE { 

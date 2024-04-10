@@ -116,7 +116,6 @@ mod tests {
         for test_entry in &perft_tests {
             let (fen, nodes_by_depth) = test_entry;
             let mut board: Board = Board::new(fen);
-            board.nnue = false;
 
             for depth in 1..nodes_by_depth.len()
             {
@@ -127,26 +126,22 @@ mod tests {
     }
 
     #[test]
-    fn test_make_undo_move_fen_eval_hash()
+    fn test_fen_hash_make_undo_move()
     {
         let mut board = Board::new(START_FEN);
         let fen = board.fen();
-        let hash = board.state.zobrist_hash;
-        let eval = board.evaluate();
+        let hash = board.zobrist_hash();
         assert_eq!(fen, START_FEN);
 
         board.make_move(AtaxxMove::from_uai("b6"));
         board.undo_move();
         assert_eq!(board.fen(), fen);
-        assert_eq!(board.state.zobrist_hash, hash);
-        assert_eq!(board.evaluate(), eval);
+        assert_eq!(board.zobrist_hash(), hash);
 
         board.make_move(MOVE_PASS);
-        assert_eq!(Board::new(&board.fen()).evaluate(), board.evaluate());
         board.undo_move();
         assert_eq!(board.fen(), fen);
-        assert_eq!(board.state.zobrist_hash, hash);
-        assert_eq!(board.evaluate(), eval);
+        assert_eq!(board.zobrist_hash(), hash);
     }
 
 }

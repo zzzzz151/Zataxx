@@ -7,6 +7,7 @@ use crate::uai::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
+use arrayvec::ArrayVec;
 use crate::board::*;
 use crate::search::*;
 
@@ -51,13 +52,13 @@ pub fn datagen()
     loop {
         searcher.board = start_board.clone();
         let num_random_plies: u8 = rng.gen_range(MIN_PLIES..=MAX_PLIES) as u8;
-        let mut moves: MovesList = MovesList::default();
+        let mut moves = ArrayVec::<AtaxxMove, 256>::new();
 
         // This loop gets a random opening
         loop {
             // Generate moves and make a random one
             searcher.board.moves(&mut moves);
-            let random_index = rng.gen_range(0..moves.size());
+            let random_index = rng.gen_range(0..moves.len());
             searcher.board.make_move(moves[random_index as usize]);
 
             // If pass move or game over, restart from start pos
@@ -68,7 +69,7 @@ pub fn datagen()
             }
 
             // If we made enough random moves
-            if searcher.board.states.len() == num_random_plies.into() 
+            if searcher.board.num_states() - 1 == num_random_plies.into() 
             { 
                 // Skip very unbalanced openings
 
@@ -102,9 +103,9 @@ pub fn datagen()
             if score.abs() >= ADJUDICATION_SCORE {
                 game_state = GameState::Won;
                 winner = if score > 0 { 
-                    searcher.board.state.color 
+                    searcher.board.side_to_move()
                 } else {
-                    opp_color(searcher.board.state.color)
+                    opp_color(searcher.board.side_to_move())
                 };
 
                 break;
@@ -114,7 +115,7 @@ pub fn datagen()
             lines.push(format!("{} | {} | {}", 
                 searcher.board.fen(), 
                 mov,
-                if searcher.board.state.color == Color::Red {score} else {-score}));
+                if searcher.board.side_to_move() == Color::Red {score} else {-score}));
 
             searcher.board.make_move(mov);
 
@@ -131,7 +132,7 @@ pub fn datagen()
         }
 
         // Skip 100 ply draws since they are bad data
-        if searcher.board.state.plies_since_single >= 100 {
+        if searcher.board.plies_since_single() >= 100 {
             continue;
         }
 
@@ -193,7 +194,7 @@ pub fn datagen_openings()
 
     let mut zobrist_hashes_written: Vec<u64> = Vec::with_capacity(1024);
     let mut rng = rand::thread_rng();
-    let mut moves: MovesList = MovesList::default();
+    let mut moves = ArrayVec::<AtaxxMove, 256>::new();
 
     // Inifnite loop
     loop {
@@ -203,7 +204,7 @@ pub fn datagen_openings()
         loop {
             // Generate moves and make a random one
             searcher.board.moves(&mut moves);
-            let random_index = rng.gen_range(0..moves.size()) as usize;
+            let random_index = rng.gen_range(0..moves.len()) as usize;
             searcher.board.make_move(moves[random_index]);  
 
             // If must pass or game over, restart from start pos
@@ -214,7 +215,7 @@ pub fn datagen_openings()
             }
 
             // If we made enough moves, break
-            if searcher.board.states.len() == PLY {
+            if searcher.board.num_states() - 1 == PLY {
                 break;
             }
         }
@@ -223,7 +224,7 @@ pub fn datagen_openings()
         assert!(!searcher.board.must_pass());
 
         // Skip opening if already found before
-        if zobrist_hashes_written.contains(&(searcher.board.state.zobrist_hash)) { 
+        if zobrist_hashes_written.contains(&(searcher.board.zobrist_hash())) { 
             continue;
         }     
 
@@ -236,7 +237,7 @@ pub fn datagen_openings()
             // Write fen to file and save zobrist hash
             let line: String = searcher.board.fen() + "\n";
             let _ = file.write_all(line.as_bytes());
-            zobrist_hashes_written.push(searcher.board.state.zobrist_hash);
+            zobrist_hashes_written.push(searcher.board.zobrist_hash());
             println!("{} | Openings written: {}", file_path, zobrist_hashes_written.len());
         }
     }

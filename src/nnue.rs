@@ -20,51 +20,112 @@ static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net4.nnue")) };
 #[repr(C, align(64))]
 pub struct Accumulator {
     red: [i16; HIDDEN_LAYER_SIZE],
-    blue: [i16; HIDDEN_LAYER_SIZE]
+    blue: [i16; HIDDEN_LAYER_SIZE],
+    last_bbs: [u64; 2]
 }
 
 impl Accumulator {
-    pub fn default() -> Self {
-        Self {
+    pub fn new(mut bitboards: [u64; 2]) -> Self 
+    {
+        let mut acc = Self {
             red: NET.feature_biases,
-            blue: NET.feature_biases
+            blue: NET.feature_biases,
+            last_bbs: bitboards
+        };
+
+        // Place red pieces
+        while bitboards[0] > 0
+        {
+            let red_piece_sq: usize = pop_lsb(&mut bitboards[0]) as usize;
+            let red_idx: usize = red_piece_sq * HIDDEN_LAYER_SIZE;
+            let blue_idx: usize = (49 + red_piece_sq) * HIDDEN_LAYER_SIZE;
+
+            for i in 0..HIDDEN_LAYER_SIZE {
+                acc.red[i] += NET.feature_weights[red_idx + i];
+                acc.blue[i] += NET.feature_weights[blue_idx + i];
+            }
         }
+
+        // Place blue pieces
+        while bitboards[1] > 0
+        {
+            let blue_piece_sq: usize = pop_lsb(&mut bitboards[1]) as usize;
+            let red_idx: usize = (49 + blue_piece_sq) * HIDDEN_LAYER_SIZE;
+            let blue_idx: usize = blue_piece_sq * HIDDEN_LAYER_SIZE;
+
+            for i in 0..HIDDEN_LAYER_SIZE {
+                acc.red[i] += NET.feature_weights[red_idx + i];
+                acc.blue[i] += NET.feature_weights[blue_idx + i];
+            }
+        }
+
+        acc
     }
 
-    pub fn activate_blocker(&mut self, sq: Square)
-    {
-        for i in 0..HIDDEN_LAYER_SIZE {
-            let idx: usize = i + sq as usize + 49 * 2 * HIDDEN_LAYER_SIZE;
-            self.red[i] += NET.feature_weights[idx];
-            self.blue[i] += NET.feature_weights[idx];
+    pub fn update(&mut self, bitboards: [u64; 2]) 
+    { 
+        let mut add_red_bb: u64 = bitboards[0] & !self.last_bbs[0];
+        let mut sub_red_bb: u64 = self.last_bbs[0] & !bitboards[0];
+        let mut add_blue_bb: u64 = bitboards[1] & !self.last_bbs[1];
+        let mut sub_blue_bb: u64 = self.last_bbs[1] & !bitboards[1];
+
+        self.last_bbs = bitboards;
+
+        // add red pieces
+        while add_red_bb > 0 {
+            let sq: usize = pop_lsb(&mut add_red_bb) as usize;
+            let red_idx: usize = sq * HIDDEN_LAYER_SIZE;
+            let blue_idx: usize = (49 + sq) * HIDDEN_LAYER_SIZE;
+
+            for i in 0..HIDDEN_LAYER_SIZE {
+                self.red[i] += NET.feature_weights[red_idx + i];
+                self.blue[i] += NET.feature_weights[blue_idx + i];
+            }
         }
-    }
 
-    pub fn activate(&mut self, color: Color, sq: Square)
-    {
-        let red_idx: usize = color as usize * 49 + sq as usize;
-        let blue_idx: usize = opp_color(color) as usize * 49 + sq as usize;
+        // remove red pieces
+        while sub_red_bb > 0 {
+            let sq: usize = pop_lsb(&mut sub_red_bb) as usize;
+            let red_idx: usize = sq * HIDDEN_LAYER_SIZE;
+            let blue_idx: usize = (49 + sq) * HIDDEN_LAYER_SIZE;
 
-        for i in 0..HIDDEN_LAYER_SIZE {
-            self.red[i] += NET.feature_weights[i + red_idx * HIDDEN_LAYER_SIZE];
-            self.blue[i] += NET.feature_weights[i + blue_idx * HIDDEN_LAYER_SIZE];
+            for i in 0..HIDDEN_LAYER_SIZE {
+                self.red[i] -= NET.feature_weights[red_idx + i];
+                self.blue[i] -= NET.feature_weights[blue_idx + i];
+            }
         }
-    }
 
-    pub fn deactivate(&mut self, color: Color, sq: Square)
-    {
-        let red_idx: usize = color as usize * 49 + sq as usize;
-        let blue_idx: usize = opp_color(color) as usize * 49 + sq as usize;
+        // add blue pieces
+        while add_blue_bb > 0 {
+            let sq: usize = pop_lsb(&mut add_blue_bb) as usize;
+            let red_idx: usize = (49 + sq) * HIDDEN_LAYER_SIZE;
+            let blue_idx: usize = sq * HIDDEN_LAYER_SIZE;
 
-        for i in 0..HIDDEN_LAYER_SIZE {
-            self.red[i] -= NET.feature_weights[i + red_idx * HIDDEN_LAYER_SIZE];
-            self.blue[i] -= NET.feature_weights[i + blue_idx * HIDDEN_LAYER_SIZE];
+            for i in 0..HIDDEN_LAYER_SIZE {
+                self.red[i] += NET.feature_weights[red_idx + i];
+                self.blue[i] += NET.feature_weights[blue_idx + i];
+            }
         }
+
+        // remove blue pieces
+        while sub_blue_bb > 0 {
+            let sq: usize = pop_lsb(&mut sub_blue_bb) as usize;
+            let red_idx: usize = (49 + sq) * HIDDEN_LAYER_SIZE;
+            let blue_idx: usize = sq * HIDDEN_LAYER_SIZE;
+
+            for i in 0..HIDDEN_LAYER_SIZE {
+                self.red[i] -= NET.feature_weights[red_idx + i];
+                self.blue[i] -= NET.feature_weights[blue_idx + i];
+            }
+        }
+
     }
 }
 
-pub fn evaluate(color: Color, accumulator: &Accumulator) -> i32
+pub fn evaluate(color: Color, accumulator: &mut Accumulator, bitboards: [u64; 2]) -> i32
 {
+    accumulator.update(bitboards);
+
     let mut stm_acc: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.red;
     let mut opp_acc: &[i16; HIDDEN_LAYER_SIZE] = &accumulator.blue;
 

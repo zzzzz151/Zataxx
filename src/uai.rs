@@ -2,6 +2,7 @@ use std::io;
 use crate::types::*;
 use crate::ataxx_move::*;
 use crate::board::*;
+use crate::nnue::*;
 use crate::perft::*;
 use crate::search::*;
 use crate::bench::*;
@@ -10,6 +11,7 @@ use crate::datagen::*;
 pub fn uai_loop()
 {
     let mut searcher: Searcher = Searcher::new(Board::new(START_FEN));
+    searcher.print_tt_size();
 
     loop
     {
@@ -39,7 +41,7 @@ pub fn uai_loop()
                 uainewgame(&mut searcher);
             }
             "position" => { 
-                position(input_split, &mut searcher.board);
+                position(input_split, &mut searcher);
              }
             "go" => { 
                 go(input_split, &mut searcher);
@@ -96,19 +98,21 @@ pub fn uai_loop()
                 println!("    A       B       C       D       E       F       G");
                 println!();
                 println!("Fen: {}", searcher.board.fen());
-                println!("Zobrist hash: {}", searcher.board.state.zobrist_hash);
-                println!("Eval: {} ", searcher.board.evaluate());
+                println!("Zobrist hash: {}", searcher.board.zobrist_hash());
+                let eval = evaluate(searcher.board.side_to_move(), &mut searcher.accumulator, searcher.board.bitboards());
+                println!("Eval: {} ", eval);
              }
             "eval" | "evaluate" | "evaluation" => {
-                println!("eval {}", searcher.board.evaluate());
+                let eval = evaluate(searcher.board.side_to_move(), &mut searcher.accumulator, searcher.board.bitboards());
+                println!("eval {}", eval);
             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                perft_bench(&searcher.board.fen(), depth);
+                perft_bench(&mut searcher.board, depth);
             }
             "perftsplit" | "splitperft" => { 
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();
-                perft_split(&searcher.board.fen(), depth);
+                perft_split(&mut searcher.board, depth);
             }
             "bench" => {
                 let depth: u8 = if input_split.len() == 2 { 
@@ -144,6 +148,7 @@ pub fn setoption(tokens: Vec<&str>, searcher: &mut Searcher)
     
     if option_name == "hash" || option_name == "Hash" {
         searcher.resize_tt(option_value as usize);
+        searcher.print_tt_size();
         return; 
     }
 
@@ -166,11 +171,11 @@ pub fn uainewgame(searcher: &mut Searcher)
     searcher.clear_history();
 }
 
-pub fn position(tokens: Vec<&str>, board: &mut Board)
+pub fn position(tokens: Vec<&str>, searcher: &mut Searcher)
 {
     // apply fen
     if tokens[1] == "startpos" {
-       *board = Board::new(START_FEN);
+       searcher.board = Board::new(START_FEN);
     }
     else if tokens[1] == "fen"
     {
@@ -183,7 +188,7 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
             fen.push(' ');
         }
         fen.pop(); // remove last whitespace
-        *board = Board::new(&fen);
+        searcher.board = Board::new(&fen);
     }
 
     // apply moves if any
@@ -191,7 +196,7 @@ pub fn position(tokens: Vec<&str>, board: &mut Board)
     {
         if token == &"moves" {
             for j in (i+3)..tokens.len() {
-                board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
+                searcher.board.make_move(AtaxxMove::from_uai(tokens[j as usize]));
             }
             break;
         }
@@ -216,19 +221,21 @@ pub fn go(tokens: Vec<&str>, searcher: &mut Searcher)
 
     for i in (1..tokens.len()).step_by(2) 
     {
-        if (tokens[i] == "rtime" && searcher.board.state.color == Color::Red)
-        || (tokens[i] == "wtime" && searcher.board.state.color == Color::Blue)
+        let stm: Color = searcher.board.side_to_move();
+
+        if (tokens[i] == "rtime" && stm == Color::Red)
+        || (tokens[i] == "wtime" && stm == Color::Blue)
         || (tokens[i] == "btime" 
-        && ((is_wtime_btime && searcher.board.state.color == Color::Red)
-        || (!is_wtime_btime && searcher.board.state.color == Color::Blue)))
+        && ((is_wtime_btime && stm == Color::Red)
+        || (!is_wtime_btime && stm == Color::Blue)))
         {
             milliseconds = tokens[i+1].parse().unwrap();
         }
-        else if (tokens[i] == "rinc" && searcher.board.state.color == Color::Red)
-        || (tokens[i] == "winc" && searcher.board.state.color == Color::Blue)
+        else if (tokens[i] == "rinc" && stm == Color::Red)
+        || (tokens[i] == "winc" && stm == Color::Blue)
         || (tokens[i] == "binc" 
-        && ((is_wtime_btime && searcher.board.state.color == Color::Red)
-        || (!is_wtime_btime && searcher.board.state.color == Color::Blue)))
+        && ((is_wtime_btime && stm == Color::Red)
+        || (!is_wtime_btime && stm == Color::Blue)))
         {
             increment_ms = tokens[i+1].parse().unwrap();
         }

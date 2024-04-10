@@ -1,14 +1,14 @@
 mod types;
 mod utils;
-mod nnue;
 mod ataxx_move;
+mod nnue;
 mod board;
 mod perft;
 mod tt_entry;
-mod datagen;
-mod uai;
 mod search;
 mod bench;
+mod datagen;
+mod uai;
 mod tests;
 
 use std::env;

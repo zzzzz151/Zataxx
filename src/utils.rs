@@ -1,6 +1,7 @@
 use std::time::Instant;
 use crate::types::*;
 use crate::ataxx_move::*;
+use arrayvec::ArrayVec;
 
 /*
 42 43 44 45 46 47 48
@@ -80,11 +81,17 @@ pub fn milliseconds_elapsed(start_time: Instant) -> u64 {
     now.duration_since(start_time).as_millis() as u64
 }
 
-pub fn incremental_sort(moves: &mut MovesList, moves_scores: &mut [i32; 256], i: usize) -> (AtaxxMove, i32)
+pub fn incremental_sort(
+    moves: &mut ArrayVec<AtaxxMove, 256>, 
+    moves_scores: &mut ArrayVec<i32, 256>, 
+    i: usize) 
+    -> (AtaxxMove, i32)
 {
-    for j in ((i+1) as usize)..(moves.size() as usize) {
-        if moves_scores[j] > moves_scores[i] {
-            moves.swap(i, j);
+    for j in ((i+1) as usize)..(moves.len() as usize) 
+    {
+        if moves_scores[j] > moves_scores[i] 
+        {
+            (moves[i], moves[j]) = (moves[j], moves[i]);
             (moves_scores[i], moves_scores[j]) = (moves_scores[j], moves_scores[i]);
         }
     }
@@ -139,6 +146,7 @@ macro_rules! tunable_params {
     };
 }
 
+/*
 #[allow(dead_code)]
 pub fn get_attacks() -> ([u64; 49], [u64; 49])
 {
@@ -154,12 +162,12 @@ pub fn get_attacks() -> ([u64; 49], [u64; 49])
         [2, 1], [2, -1], [-2, 1], [-2, -1],
     ];
 
-    let mut adjacent_squares_table: [u64; 49] = [0; 49];
-    let mut leap_squares_table: [u64; 49] = [0; 49];
+    let mut ADJACENT: [u64; 49] = [0; 49];
+    let mut DOUBLES: [u64; 49] = [0; 49];
 
     for sq in 0..49
     {
-        adjacent_squares_table[sq] = 0;
+        ADJACENT[sq] = 0;
         let rank: i16 = square_rank(sq as u8) as i16;
         let file: i16 = square_file(sq as u8) as i16;
         // Init adjacent squares for this sq
@@ -170,7 +178,7 @@ pub fn get_attacks() -> ([u64; 49], [u64; 49])
             if rank2 >= 0 && rank2 <= 6 && file2 >= 0 && file2 <= 6
             {
                 let adjacent_sq: u8 = (rank2 * 7 + file2) as u8;
-                adjacent_squares_table[sq] |= 1u64 << adjacent_sq;
+                ADJACENT[sq] |= 1u64 << adjacent_sq;
             }
         }
         // Init leap squares for this sq
@@ -181,16 +189,17 @@ pub fn get_attacks() -> ([u64; 49], [u64; 49])
             if rank2 >= 0 && rank2 <= 6 && file2 >= 0 && file2 <= 6
             {
                 let leap_sq: u8 = (rank2 * 7 + file2) as u8;
-                leap_squares_table[sq] |= 1u64 << leap_sq;
+                DOUBLES[sq] |= 1u64 << leap_sq;
             }
         }
     }
 
-    return (adjacent_squares_table, leap_squares_table)
+    return (ADJACENT, DOUBLES)
 }
+*/
 
 // [square]
-pub const ADJACENT_SQUARES_TABLE: [u64; 49] = [
+pub const ADJACENT: [u64; 49] = [
     386, 901, 1802, 3604, 7208, 14416, 12320,
     49411, 115335, 230670, 461340, 922680, 1845360, 1577056,
     6324608, 14762880, 29525760, 59051520, 118103040, 236206080, 201863168, 
@@ -201,7 +210,7 @@ pub const ADJACENT_SQUARES_TABLE: [u64; 49] = [
 ];
 
 // [square]
-pub const LEAP_SQUARES_TABLE: [u64; 49] = [
+pub const DOUBLES: [u64; 49] = [
     115204, 246792, 510097, 1020194, 2040388, 1967112, 1837072,
     14746116, 31589384, 65292433, 130584866, 261169732, 251790344, 235145232, 
     1887502855, 4043441167, 8357431455, 16714862910, 33429725820, 32229164152, 30098589808, 

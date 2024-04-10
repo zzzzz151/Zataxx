@@ -1,6 +1,5 @@
 use crate::types::*;
 use crate::utils::*;
-use std::ops::Index;
 use std::fmt;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -85,49 +84,5 @@ impl fmt::Display for AtaxxMove
             write!(f, "{}",
                 SQUARE_TO_STR[self.from as usize].to_string() + SQUARE_TO_STR[self.to as usize])
         }
-    }
-}
-
-pub struct MovesList {
-    pub moves: [AtaxxMove; 256],
-    num_moves: u8
-}
-
-impl MovesList {
-    pub fn default() -> Self {
-        Self {
-            moves: [MOVE_NONE; 256],
-            num_moves: 0
-        }
-    }
-
-    pub fn size(&self) -> u8 {
-        self.num_moves
-    }
-
-    pub fn clear(&mut self) {
-        self.num_moves = 0;
-    }
-
-    pub fn add(&mut self, mov: AtaxxMove) {
-        assert!(self.num_moves < 255);
-        self.moves[self.num_moves as usize] = mov;
-        self.num_moves += 1;
-    }
-
-    pub fn swap(&mut self, i: usize, j: usize) {
-        assert!(i < self.num_moves.into() && j < self.num_moves.into());
-        (self.moves[i], self.moves[j]) = (self.moves[j], self.moves[i]);
-    }
-
-}
-
-// This allows MovesList[index]
-impl Index<usize> for MovesList {
-    type Output = AtaxxMove;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        assert!(index < self.num_moves.into());
-        &self.moves[index]
     }
 }
