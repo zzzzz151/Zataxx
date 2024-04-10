@@ -1,14 +1,40 @@
 use std::time::Instant;
-use crate::tables::*;
 use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
 use crate::board::*;
 use crate::tt_entry::*;
+use crate::tunable_params;
 
 pub const DEFAULT_MAX_DEPTH: u8 = 100;
 pub const TT_DEFAULT_MB: usize = 32;
-pub const HISTORY_MAX: i32 = 16384;
+
+tunable_params! {
+    rfp_max_depth: i32 = 6, 6, 10, 1;
+    rfp_multiplier: i32 = 50, 20, 160, 10;
+    iir_min_depth: i32 = 3, 3, 6, 1;
+    fp_max_depth: i32 = 6, 6, 10, 1;
+    fp_min_moves: usize = 3, 2, 8, 1;
+    fp_base: i32 = 160, 20, 260, 20;
+    fp_multiplier: i32 = 80, 20, 260, 20;
+    singular_min_depth: i32 = 6, 6, 10, 1;
+    singular_depth_margin: i32 = 3, 1, 5, 1;
+    lmr_base: f64 = 0.8, 0.1, 2.0, 0.1;
+    lmr_multiplier: f64 = 0.4, 0.1, 2.0, 0.1;
+    lmr_min_moves: usize = 2, 2, 8, 1;
+    lmr_history_div: f32 = 12288.0, 2048.0, 24576.0, 2048.0;
+    history_bonus_multiplier: i32 = 300, 50, 600, 50;
+    history_bonus_max: i32 = 1500, 500, 2500, 100;
+    history_malus_multiplier: i32 = 300, 50, 600, 50;
+    history_malus_max: i32 = 1500, 500, 2500, 100;
+    history_max: i32 = 16384, 4096, 32768, 4096;
+    hard_time_percentage: f64 = 0.5, 0.3, 0.7, 0.1;
+    soft_time_percentage: f64 = 0.05, 0.03, 0.07, 0.02;
+    soft_time_scale: f64 = 0.6, 0.4, 0.8, 0.1;
+    nodes_tm_min_depth: u8 = 7, 7, 11, 1;
+    nodes_tm_base: f64 = 1.55, 1.3, 1.7, 0.2;
+    nodes_tm_multiplier: f64 = 1.5, 1.3, 1.7, 0.2;
+}
 
 pub struct Searcher {
     pub board: Board,
@@ -24,9 +50,9 @@ pub struct Searcher {
     root_move_nodes: [u64; 1usize << 13],
     tt: Vec<TTEntry>,
     evals: Vec<i32>,
-    lmr_table: Vec<Vec<u8>>,
+    lmr_table: [[u8; 256]; 256],
     killers: Vec<AtaxxMove>,
-    history: [[[i32; 49]; 49]; 2] // [color][move.from][move.to]
+    history: [[[i32; 49]; 49]; 2], // [color][move.from][move.to]
 }
 
 impl Searcher
@@ -47,13 +73,24 @@ impl Searcher
             root_move_nodes: [0; 1usize << 13],
             tt: vec![TTEntry::default(); 0],
             evals: vec![0; 256],
-            lmr_table: get_lmr_table(256),
+            lmr_table: [[0; 256]; 256],
             killers: vec![MOVE_NONE; 256 as usize],
-            history: [[[0; 49]; 49]; 2] 
+            history: [[[0; 49]; 49]; 2],
         };
 
+        searcher.init_lmr_table();
         searcher.resize_tt(TT_DEFAULT_MB);
         searcher
+    }
+
+    pub fn init_lmr_table(&mut self) {
+        for depth in 1..256 {
+            for move_num in 1..256 
+            {
+                let value: f64 = lmr_base() + (depth as f64).ln() * (move_num as f64).ln() * lmr_multiplier();
+                self.lmr_table[depth][move_num] = value.round().clamp(0.0, 255.0) as u8;
+            }
+        }
     }
 
     pub fn resize_tt(&mut self, size_mb: usize) 
@@ -117,8 +154,9 @@ impl Searcher
             self.soft_milliseconds = U64_MAX;
         }
         else {
-            self.hard_milliseconds = max_hard_ms / 2;
-            let soft_milliseconds: f64 = (max_hard_ms as f64 / 20.0 + increment_ms as f64 * 0.6666) * 0.6;
+            self.hard_milliseconds = (max_hard_ms as f64 * hard_time_percentage()) as u64;
+            let mut soft_milliseconds: f64 = max_hard_ms as f64 * soft_time_percentage() + increment_ms as f64 * 0.6666;
+            soft_milliseconds *= soft_time_scale();
             self.soft_milliseconds = (soft_milliseconds as u64).min(self.hard_milliseconds);
         }
 
@@ -155,7 +193,7 @@ impl Searcher
 
             // Stop searching if soft time exceeded
 
-            let updated_soft_milliseconds: u64 = if iteration_depth >= 7 
+            let updated_soft_milliseconds: u64 = if iteration_depth >= nodes_tm_min_depth()
             {
                 let best_move_nodes_fraction: f64 = if self.best_move_root == MOVE_PASS { 
                     1.0 
@@ -165,7 +203,10 @@ impl Searcher
                     / self.nodes.max(1) as f64
                 };
 
-                (self.soft_milliseconds as f64 * 1.5 * (1.55 - best_move_nodes_fraction)) as u64
+                (self.soft_milliseconds as f64 
+                * (nodes_tm_base() - best_move_nodes_fraction)
+                * nodes_tm_multiplier())
+                as u64
             }
             else {
                 self.soft_milliseconds
@@ -179,40 +220,6 @@ impl Searcher
         assert!(self.best_move_root != MOVE_NONE);
         (self.best_move_root, score)
     }
-
-    /*
-    fn aspiration(self: &mut SearchData, iteration_depth: u8, mut score: i32) -> i32
-    {
-        let mut delta: i32 = 80;
-        let mut alpha: i32 = (score - delta).max(-INFINITY);
-        let mut beta: i32 = (score + delta).min(INFINITY);
-        let mut depth: i32 = iteration_depth as i32;
-
-        loop
-        {
-            score = self.pvs(depth, 0, -INFINITY, INFINITY);
-
-            if self.is_hard_time_up() { return 0; }
-
-            if score >= beta {
-                beta = (beta + delta).min(INFINITY);
-                depth -= 1;
-            }
-            else if score <= alpha {
-                beta = (alpha + beta) / 2;
-                alpha = (alpha - delta).max(-INFINITY);
-                depth = iteration_depth as i32;
-            }
-            else {
-                break;
-            }
-
-            delta *= 2;
-        }
-
-        score
-    }
-    */
 
     fn pvs(&mut self, mut depth: i32, ply: i32, 
            mut alpha: i32, beta: i32, singular: bool) -> i32
@@ -254,7 +261,9 @@ impl Searcher
         let tt_hit: bool = self.board.state.zobrist_hash == tt_entry.zobrist_hash;
 
         // TT cutoff
-        if tt_hit && ply > 0 && !singular
+        if tt_hit 
+        && ply > 0 
+        && !singular
         && tt_entry.depth >= (depth as u8)
         && (tt_entry.get_bound() == Bound::Exact
         || (tt_entry.get_bound() == Bound::Lower && tt_entry.score >= beta as i16)
@@ -268,15 +277,17 @@ impl Searcher
         self.evals[ply as usize] = eval;
 
         // RFP (Reverse futility pruning)
-        if !pv_node && !singular && depth <= 6 
-        && eval >= beta + depth * 50 {
+        if !pv_node 
+        && !singular 
+        && depth <= rfp_max_depth()
+        && eval >= beta + depth * rfp_multiplier() {
             return eval;
         }
 
         let tt_move = if tt_hit { tt_entry.get_move() } else { MOVE_NONE };
 
         // IIR (Internal iterative reduction)
-        if tt_move == MOVE_NONE && depth >= 3 {
+        if tt_move == MOVE_NONE && depth >= iir_min_depth() {
             depth -= 1;
         }
 
@@ -297,7 +308,7 @@ impl Searcher
                 else {
                     moves_scores[i] = mov.is_single() as i32 * 2;
                     moves_scores[i] += self.board.num_adjacent_enemies(mov.to) as i32;
-                    moves_scores[i] *= 100_000;
+                    moves_scores[i] *= 1_000_000;
                     moves_scores[i] += self.history[stm][mov.from as usize][mov.to as usize];
                 }
             }
@@ -318,13 +329,15 @@ impl Searcher
             if ply > 0 && best_score > -MIN_WIN_SCORE
             {
                 // LMP (Late move pruning)
-                if move_score < HISTORY_MAX && i >= 2 {
+                if move_score < history_max() && i >= 2 {
                     break;
                 }
 
                 // FP (Futility pruning)
-                if depth <= 6 && alpha < MIN_WIN_SCORE && i >= 3
-                && eval + 160 + depth * 80 <= alpha {
+                if depth <= fp_max_depth() 
+                && alpha < MIN_WIN_SCORE 
+                && i >= fp_min_moves()
+                && eval + fp_base() + depth * fp_multiplier() <= alpha {
                     break;
                 }
             }
@@ -333,10 +346,12 @@ impl Searcher
                     
             // SE (Singular extensions)
             let mut extension: i32 = 0;
-            if mov == tt_move && !singular 
-            && !pv_node && depth >= 6
+            if mov == tt_move 
+            && !singular 
+            && !pv_node 
+            && depth >= singular_min_depth()
             && tt_entry.score.abs() < MIN_WIN_SCORE as i16
-            && tt_entry.depth as i32 >= depth - 3
+            && tt_entry.depth as i32 >= depth - singular_depth_margin()
             && tt_entry.get_bound() != Bound::Upper
             {
                 let singular_beta: i32 = (tt_entry.score as i32 - depth).max(-INFINITY);
@@ -365,13 +380,15 @@ impl Searcher
                 -self.pvs(depth - 1 + extension, ply + 1,-beta, -alpha, false)
             } else {
                 // LMR (Late move reductions)
-                let lmr: i32 = if depth >= 3 && i >= 2 
+                let lmr: i32 = if depth >= 3 && i >= lmr_min_moves() 
                 {
+                    let history: f32 = self.history[stm][mov.from as usize][mov.to as usize] as f32;
+
                     (self.lmr_table[depth as usize][i+1] as i32
                     // reduce pv nodes less
                     - pv_node as i32
                     // reduce moves with good history less and vice versa
-                    - self.history[stm][mov.from as usize][mov.to as usize] / 8192)
+                    - (history / lmr_history_div()).round() as i32)
                     // dont extend or drop into static eval
                     .clamp(0, depth - 2)
                 } else {
@@ -419,15 +436,14 @@ impl Searcher
 
             // Increase this move's history
             let mut move_history =  &mut self.history[stm][mov.from as usize][mov.to as usize];
-            let bonus: i32 = depth * depth;
-            *move_history += bonus - bonus * *move_history / HISTORY_MAX;
-            assert!(*move_history >= -HISTORY_MAX && *move_history <= HISTORY_MAX);
+            let bonus: i32 = (depth * history_bonus_multiplier()).min(history_bonus_max());
+            *move_history += bonus - bonus * *move_history / history_max();
 
             // History malus: decrease history of tried moves
+            let malus: i32 = (depth * history_malus_multiplier()).min(history_malus_max());
             for j in 0..i {
                 move_history =  &mut self.history[stm][moves[j].from as usize][moves[j].to as usize];
-                *move_history += -bonus - bonus * *move_history / HISTORY_MAX;
-                assert!(*move_history >= -HISTORY_MAX && *move_history <= HISTORY_MAX);
+                *move_history += -malus - malus * *move_history / history_max();
             }
 
             break;

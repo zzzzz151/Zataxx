@@ -1,6 +1,5 @@
 mod types;
 mod utils;
-mod tables;
 mod nnue;
 mod ataxx_move;
 mod board;

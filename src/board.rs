@@ -1,7 +1,6 @@
 use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
-use crate::tables::*;
 use crate::nnue::*;
 
 #[derive(Copy, Clone)]
@@ -11,7 +10,7 @@ pub struct BoardState
     pub bitboards: [u64; 2], // [color]
     pub blocked: u64,
     pub plies_since_single: u16,
-    pub current_move: u16,
+    pub move_counter: u16,
     pub mov: AtaxxMove,
     pub zobrist_hash: u64,
     pub accumulator: Accumulator
@@ -25,7 +24,7 @@ impl BoardState
             bitboards: [0, 0],
             blocked: 0,
             plies_since_single: 0,
-            current_move: 1,
+            move_counter: 1,
             mov: MOVE_NONE,
             zobrist_hash: 0,
             accumulator: Accumulator::default()
@@ -63,7 +62,7 @@ impl Board
         board.state.zobrist_hash ^= ZOBRIST_COLOR[board.state.color as usize];
 
         board.state.plies_since_single = fen_split[2].parse().unwrap();
-        board.state.current_move = fen_split[3].parse().unwrap();
+        board.state.move_counter = fen_split[3].parse().unwrap();
 
         // Parse fen rows/pieces
         let mut rank: i16 = 6;
@@ -129,7 +128,7 @@ impl Board
         my_fen += &self.state.plies_since_single.to_string();
 
         my_fen.push(' ');
-        my_fen += &self.state.current_move.to_string();
+        my_fen += &self.state.move_counter.to_string();
 
         my_fen
     }
@@ -210,7 +209,7 @@ impl Board
         self.state.mov = mov;
 
         if self.state.color == Color::Blue {
-            self.state.current_move += 1;
+            self.state.move_counter += 1;
         }
 
         if mov == MOVE_PASS {

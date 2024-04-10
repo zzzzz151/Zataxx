@@ -88,7 +88,7 @@ pub fn evaluate(color: Color, accumulator: &Accumulator) -> i32
     }
 
     let eval: i32 = (sum / QA + i32::from(NET.output_bias)) * SCALE / (QA * QB);
-    clamp(eval, -MIN_WIN_SCORE + 1, MIN_WIN_SCORE - 1)
+    eval.clamp(-MIN_WIN_SCORE + 1, MIN_WIN_SCORE - 1)
 }
 
 

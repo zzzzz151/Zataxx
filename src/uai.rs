@@ -26,6 +26,7 @@ pub fn uai_loop()
                 println!("id name Zataxx");
                 println!("id author zzzzz");
                 println!("option name Hash type spin default {} min 1 max 1024", TT_DEFAULT_MB);
+                list_params();
                 println!("uaiok");
             }
             "setoption" => { 
@@ -48,7 +49,7 @@ pub fn uai_loop()
                 uainewgame(&mut searcher);
 
                 let score = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
-                                true, 100_000, 1_000_000, false).1 as i64;
+                                true, 100_000, 150_000, false).1 as i64;
 
                 uainewgame(&mut searcher);
 
@@ -61,7 +62,7 @@ pub fn uai_loop()
                     for col_idx in 0..=6 
                     {
                         let sq: Square = (row_idx * 7 + col_idx) as Square;
-                        let piece: char = searcher.board.piece_at(sq);
+                        let piece: char = searcher.board.piece_at(sq).to_uppercase().next().unwrap();
                         print!("   {}   |", piece);    
                     }
                     println!(" {}", row_idx + 1);
@@ -78,11 +79,11 @@ pub fn uai_loop()
                             searcher.board.remove_piece(piece_color, sq);
 
                             let score_no_piece = searcher.search(DEFAULT_MAX_DEPTH, I64_MAX, 0, 
-                                                     true, 100_000, 1_000_000, false).1 as i64;
+                                                     true, 100_000, 150_000, false).1 as i64;
 
                             uainewgame(&mut searcher);
 
-                            print!("{:^7}|", score - score_no_piece);
+                            print!("{:^7}|", (score - score_no_piece).clamp(-INFINITY as i64, INFINITY as i64));
 
                             searcher.board.place_piece(piece_color, sq);
                         }
@@ -138,13 +139,23 @@ pub fn uai_loop()
 
 pub fn setoption(tokens: Vec<&str>, searcher: &mut Searcher)
 {
-    let option_name = tokens[2];
-    let option_value = tokens[4];
+    let option_name: &str = tokens[2];
+    let option_value: f64 = tokens[4].parse::<f64>().unwrap();
+    
+    if option_name == "hash" || option_name == "Hash" {
+        searcher.resize_tt(option_value as usize);
+        return; 
+    }
 
-    if option_name == "hash" || option_name == "Hash" 
+    match set_param(option_name, option_value) 
     {
-        let size_mb: usize = option_value.parse().unwrap();
-        searcher.resize_tt(size_mb);
+        Ok(updated_value_as_str) => { 
+            if option_name == stringify!(lmr_base) || option_name == stringify!(lmr_multiplier) {
+                searcher.init_lmr_table();
+            }
+            println!("{} set to {}", option_name, updated_value_as_str);
+        }
+        Err(_msg) => println!("Unknown option {}", option_name)
     }
 }
 
