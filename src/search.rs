@@ -12,6 +12,9 @@ pub const DEFAULT_MAX_DEPTH: u8 = 100;
 pub const TT_DEFAULT_MB: usize = 32;
 
 tunable_params! {
+    asp_min_depth: u8 = 7, 6, 9, 1;
+    asp_initial_delta: i32 = 16, 5, 40, 5;
+    asp_delta_multiplier: f32 = 1.5, 1.2, 2.0, 0.1;
     rfp_max_depth: i32 = 6, 6, 10, 1;
     rfp_multiplier: i32 = 50, 20, 160, 10;
     iir_min_depth: i32 = 3, 3, 6, 1;
@@ -174,12 +177,17 @@ impl Searcher
         for iteration_depth in 1..=self.max_depth 
         {
             self.max_ply_reached = 0;
-            let iteration_score = self.pvs(iteration_depth as i32, 0, -INFINITY, INFINITY, false);
+            let iteration_score = if iteration_depth >= asp_min_depth() {
+                self.aspiration(iteration_depth, score)
+            }
+            else {
+                self.pvs(iteration_depth as i32, 0, -INFINITY, INFINITY, false)
+            };
 
             if self.is_hard_time_up() { break; }
 
             assert!(self.best_move_root != MOVE_NONE);
-
+            score = iteration_score;
             let ms_elapsed = self.milliseconds_elapsed();
 
             if print_info {
@@ -192,8 +200,6 @@ impl Searcher
                     self.nodes * 1000 / ms_elapsed.max(1),
                     self.best_move_root);
             }
-            
-            score = iteration_score;
 
             // Check soft nodes
             if self.nodes >= self.soft_nodes {
@@ -228,6 +234,38 @@ impl Searcher
 
         assert!(self.best_move_root != MOVE_NONE);
         (self.best_move_root, score)
+    }
+
+    fn aspiration(&mut self, iteration_depth: u8, mut score: i32) -> i32
+    {
+        assert!(iteration_depth > 1);
+        let mut delta: i32 = asp_initial_delta();
+        let mut alpha: i32 = (score - delta).max(-INFINITY);
+        let mut beta: i32 = (score + delta).min(INFINITY);
+        let mut depth: i32 = iteration_depth as i32;
+
+        loop {
+            score = self.pvs(depth, 0, alpha, beta, false);
+
+            if self.is_hard_time_up() { return 0; }
+
+            if score >= beta {
+                beta = (beta + delta).min(INFINITY);
+                if depth > 1 { depth -= 1 }
+            }
+            else if score <= alpha {
+                beta = (alpha + beta) / 2;
+                alpha = (alpha - delta).max(-INFINITY);
+                depth = iteration_depth as i32;
+            }
+            else {
+                break;
+            }
+
+            delta = (delta as f32 * asp_delta_multiplier()).round() as i32;
+        }
+
+        score
     }
 
     fn pvs(&mut self, mut depth: i32, ply: i32, 

@@ -14,6 +14,8 @@ The exe will be in `target/release`
 
 ### Extra commands
 
+- display
+
 - eval
 
 - perft \<depth\>
@@ -30,13 +32,14 @@ The exe will be in `target/release`
 - Zobrist hashing
 
 ### Evaluation
-- NNUE
-- (98->512)x2->1
+- Neural network (98->512)x2->1
 - Self-play data
 - SCReLU activation
+- Lazy updates
 
 ### Search
 - Iterative deepening
+- Aspiration windows
 - Fail-soft negamax
 - Principal variation search
 - Transposition table
