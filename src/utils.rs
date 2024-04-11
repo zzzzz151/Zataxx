@@ -121,9 +121,12 @@ macro_rules! tunable_params {
 
         pub fn list_params() {
             $(
-                println!(
-                    "option name {} type tunable default {} min {} max {} step {}",
+                let is_float: bool = std::any::TypeId::of::<$type>() == std::any::TypeId::of::<f32>() 
+                                     || std::any::TypeId::of::<$type>() == std::any::TypeId::of::<f64>();
+
+                println!("option name {} type {} default {} min {} max {} step {}",
                     stringify!($name),
+                    if is_float { "tunable_float" } else { "tunable_int" },
                     $default,
                     $min_value,
                     $max_value,

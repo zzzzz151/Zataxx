@@ -353,6 +353,7 @@ impl Board
         unsafe { (*self.state).bitboards[opp_color(self.side_to_move()) as usize] }
     }
     
+    #[allow(dead_code)]
     pub fn occupancy(&self) -> u64 {
         unsafe { (*self.state).occupancy() }
     }
@@ -379,6 +380,7 @@ impl Board
         unsafe { (*self.state).remove_piece(color, sq); }
     }
 
+    #[allow(dead_code)]
     pub fn switch_stm(&mut self) {
         unsafe { (*self.state).switch_stm() }
     }
