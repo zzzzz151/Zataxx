@@ -5,6 +5,7 @@ pub const I64_MAX: i64 = 9223372036854775807;
 pub const START_FEN: &str = "x5o/7/7/7/7/7/o5x x 0 1";
 pub const INFINITY: i32 = 32000;
 pub const MIN_WIN_SCORE: i32 = 31000;
+pub const EVAL_NONE: i32 = INFINITY;
 
 /*
 42 43 44 45 46 47 48

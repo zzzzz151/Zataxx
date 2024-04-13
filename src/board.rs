@@ -331,10 +331,6 @@ impl Board
     pub fn side_to_move(&self) -> Color {
         unsafe { (*self.state).color }
     }
-
-    pub fn bitboards(&self) -> [u64; 2] {
-        unsafe { (*self.state).bitboards }
-    }
     
     pub fn red(&self) -> u64 {
         unsafe { (*self.state).bitboards[Color::Red as usize] }
@@ -344,7 +340,6 @@ impl Board
         unsafe { (*self.state).bitboards[Color::Blue as usize] }
     }
     
-    #[allow(dead_code)]
     pub fn us(&self) -> u64 { 
         unsafe { (*self.state).bitboards[self.side_to_move() as usize] }
     }

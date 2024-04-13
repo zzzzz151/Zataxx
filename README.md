@@ -32,10 +32,9 @@ The exe will be in `target/release`
 - Zobrist hashing
 
 ### Evaluation
-- Neural network (98->512)x2->1
+- 2-tuples Neural Network (2916->256->1)
 - Self-play data
 - SCReLU activation
-- Lazy updates
 
 ### Search
 - Iterative deepening

@@ -2,7 +2,7 @@ use std::io;
 use crate::types::*;
 use crate::ataxx_move::*;
 use crate::board::*;
-use crate::nnue::*;
+use crate::nn::*;
 use crate::perft::*;
 use crate::search::*;
 use crate::bench::*;
@@ -99,12 +99,10 @@ pub fn uai_loop()
                 println!();
                 println!("Fen: {}", searcher.board.fen());
                 println!("Zobrist hash: {}", searcher.board.zobrist_hash());
-                let eval = evaluate(searcher.board.side_to_move(), &mut searcher.accumulator, searcher.board.bitboards());
-                println!("Eval: {} ", eval);
+                println!("Eval: {} ", evaluate(&searcher.board));
              }
             "eval" | "evaluate" | "evaluation" => {
-                let eval = evaluate(searcher.board.side_to_move(), &mut searcher.accumulator, searcher.board.bitboards());
-                println!("eval {}", eval);
+                println!("eval {}", evaluate(&searcher.board));
             }
             "perft" => {  
                 let depth: u8 = input_split[1].parse::<u8>().unwrap();

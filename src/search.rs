@@ -3,7 +3,7 @@ use crate::types::*;
 use crate::utils::*;
 use crate::ataxx_move::*;
 use arrayvec::ArrayVec;
-use crate::nnue::*;
+use crate::nn::*;
 use crate::board::*;
 use crate::tt_entry::*;
 use crate::tunable_params;
@@ -43,7 +43,6 @@ tunable_params! {
 
 pub struct Searcher {
     pub board: Board,
-    pub accumulator: Accumulator,
     max_depth: u8,
     max_ply_reached: u8,
     nodes: u64,
@@ -55,9 +54,9 @@ pub struct Searcher {
     best_move_root: AtaxxMove,
     root_move_nodes: [u64; 1usize << 13],
     tt: Vec<TTEntry>,
-    evals: Vec<i32>,
+    evals: [i32; 256],
     lmr_table: [[u8; 256]; 256],
-    killers: Vec<AtaxxMove>,
+    killers: [AtaxxMove; 256],
     history: [[[i32; 49]; 49]; 2], // [color][move.from][move.to]
 }
 
@@ -67,7 +66,6 @@ impl Searcher
     {
         let mut searcher = Self {
             board: board.clone(),
-            accumulator: Accumulator::new(board.bitboards()),
             max_depth: DEFAULT_MAX_DEPTH,
             max_ply_reached: 0,
             nodes: 0,
@@ -79,9 +77,9 @@ impl Searcher
             best_move_root: MOVE_NONE,
             root_move_nodes: [0; 1usize << 13],
             tt: vec![TTEntry::default(); 0],
-            evals: vec![0; 256],
+            evals: [0; 256],
             lmr_table: [[0; 256]; 256],
-            killers: vec![MOVE_NONE; 256 as usize],
+            killers: [MOVE_NONE; 256],
             history: [[[0; 49]; 49]; 2],
         };
 
@@ -119,7 +117,7 @@ impl Searcher
     }
 
     pub fn clear_killers(&mut self) {
-        self.killers = vec![MOVE_NONE; self.killers.len()];
+        self.killers = [MOVE_NONE; 256];
     }
 
     pub fn clear_history(&mut self) {
@@ -268,14 +266,24 @@ impl Searcher
         score
     }
 
-    fn pvs(&mut self, mut depth: i32, ply: i32, 
+    #[inline]
+    fn eval(&mut self, ply: u8) -> i32 
+    {
+        let ply = ply as usize;
+        if self.evals[ply] == EVAL_NONE {
+            self.evals[ply] = evaluate(&self.board);
+        }
+        self.evals[ply]
+    }
+
+    fn pvs(&mut self, mut depth: i32, ply: u8, 
            mut alpha: i32, beta: i32, singular: bool) -> i32
     {
         if self.is_hard_time_up() { return 0; }
 
         // Update seldepth
-        if ply as u8 > self.max_ply_reached {
-            self.max_ply_reached = ply as u8;
+        if ply > self.max_ply_reached {
+            self.max_ply_reached = ply;
         }
 
         // Game over?
@@ -286,16 +294,16 @@ impl Searcher
 
             if winner != Color::None {
                 return if winner == self.board.side_to_move() {
-                    INFINITY - ply
+                    INFINITY - (ply as i32)
                 } else {
-                    -INFINITY + ply
+                    -INFINITY + (ply as i32)
                 }
             }
         }
 
         // Leaf node, return static eval
-        if depth <= 0 || ply >= self.max_depth.into() { 
-            return evaluate(self.board.side_to_move(), &mut self.accumulator, self.board.bitboards());
+        if depth <= 0 || ply >= self.max_depth { 
+            return evaluate(&self.board);
         }
 
         if depth > self.max_depth.into() { 
@@ -304,7 +312,7 @@ impl Searcher
 
         // Probe TT
         let tt_entry_index = self.board.zobrist_hash() as usize % self.tt.len();
-        let tt_entry: &TTEntry = &self.tt[tt_entry_index];
+        let tt_entry: TTEntry = self.tt[tt_entry_index];
         let tt_hit: bool = self.board.zobrist_hash() == tt_entry.zobrist_hash;
 
         // TT cutoff
@@ -316,24 +324,21 @@ impl Searcher
         || (tt_entry.get_bound() == Bound::Lower && tt_entry.score >= beta as i16)
         || (tt_entry.get_bound() == Bound::Upper && tt_entry.score <= alpha as i16))
         {
-            return tt_entry.adjusted_score(ply as u8) as i32;
+            return tt_entry.adjusted_score(ply) as i32;
         }
 
         let pv_node = beta - alpha > 1;
 
-        let eval = if singular { 
-            self.evals[ply as usize] 
-        } else { 
-            evaluate(self.board.side_to_move(), &mut self.accumulator, self.board.bitboards())
-        };
-        self.evals[ply as usize] = eval;
+        if !singular { 
+            self.evals[ply as usize] = EVAL_NONE;
+        }
 
         // RFP (Reverse futility pruning)
         if !pv_node 
         && !singular 
         && depth <= rfp_max_depth()
-        && eval >= beta + depth * rfp_multiplier() {
-            return eval;
+        && self.eval(ply) >= beta + depth * rfp_multiplier() {
+            return self.eval(ply);
         }
 
         let tt_move = if tt_hit { tt_entry.get_move() } else { MOVE_NONE };
@@ -373,7 +378,6 @@ impl Searcher
         let mut best_score: i32 = -INFINITY;
         let mut best_move: AtaxxMove = MOVE_NONE;
         let mut bound: Bound = Bound::Upper;
-        //let improving = ply > 1 && eval > self.evals[ply as usize - 2];
 
         for i in 0..(moves.len() as usize)
         {
@@ -393,12 +397,10 @@ impl Searcher
                 if depth <= fp_max_depth() 
                 && alpha < MIN_WIN_SCORE 
                 && i >= fp_min_moves()
-                && eval + fp_base() + depth * fp_multiplier() <= alpha {
+                && self.eval(ply) + fp_base() + depth * fp_multiplier() <= alpha {
                     break;
                 }
             }
-
-            let tt_entry: &TTEntry = &self.tt[tt_entry_index];
                     
             // SE (Singular extensions)
             let mut extension: i32 = 0;
@@ -513,9 +515,9 @@ impl Searcher
             tt_entry.depth = depth as u8;
 
             tt_entry.score = if best_score >= MIN_WIN_SCORE { 
-                (best_score + ply) as i16 
+                (best_score +  ply as i32) as i16 
             } else if best_score <= -MIN_WIN_SCORE { 
-                (best_score - ply) as i16 
+                (best_score - ply as i32) as i16 
             } else { 
                 best_score as i16 
             };

@@ -1,8 +1,8 @@
 mod types;
 mod utils;
 mod ataxx_move;
-mod nnue;
 mod board;
+mod nn;
 mod perft;
 mod tt_entry;
 mod search;
