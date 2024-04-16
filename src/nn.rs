@@ -15,7 +15,7 @@ pub struct Net {
     output_bias: i16
 }
 
-static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net5-256.nnue")) };
+static NET: Net = unsafe { std::mem::transmute(*include_bytes!("net5-256.bin")) };
 
 pub fn evaluate(board: &Board) -> i32
 {

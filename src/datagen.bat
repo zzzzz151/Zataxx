@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 set numThreads=%1
 
 if not defined numThreads (
-    echo Usage: src\datagen.bat openings^? ^<numThreads^>
+    echo Usage: src\datagen.bat ^<numThreads^>
     pause
 ) else (
     set command=target\release\zataxx.exe datagen

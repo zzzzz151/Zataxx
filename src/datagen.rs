@@ -18,9 +18,9 @@ pub fn datagen()
     pub const MIN_PLIES: u8 = 14;
     pub const MAX_PLIES: u8 = 17;
     pub const SOFT_NODES: u64 = 5000;
-    pub const HARD_NODES: u64 = 1_000_000;
-    pub const MAX_OPENING_SCORE: i32 = 200;
-    pub const ADJUDICATION_SCORE: i32 = 4000;
+    pub const HARD_NODES: u64 = 10_000;
+    pub const MAX_OPENING_SCORE: i32 = 300;
+    pub const ADJUDICATION_SCORE: i32 = 8000;
 
     // Create 'data' folder if doesnt exist
     let _ = fs::create_dir_all("data");
@@ -166,9 +166,9 @@ pub fn datagen()
 pub fn datagen_openings()
 {
     pub const PLY: usize = 8;
-    pub const SOFT_NODES: u64 = 1_000_000;
-    pub const HARD_NODES: u64 = 100_000_000;
-    pub const MAX_OPENING_SCORE: i32 = 3;
+    pub const SOFT_NODES: u64 = 500_000;
+    pub const HARD_NODES: u64 = 5_000_000;
+    pub const MAX_OPENING_SCORE: i32 = 5;
 
     // Create 'data' folder if doesnt exist
     let _ = fs::create_dir_all("data");
