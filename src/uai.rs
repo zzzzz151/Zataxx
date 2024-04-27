@@ -28,7 +28,7 @@ pub fn uai_loop()
                 println!("id name Zataxx");
                 println!("id author zzzzz");
                 println!("option name Hash type spin default {} min 1 max 1024", TT_DEFAULT_MB);
-                list_params();
+                //list_params();
                 println!("uaiok");
             }
             "setoption" => { 
@@ -142,15 +142,22 @@ pub fn uai_loop()
 pub fn setoption(tokens: Vec<&str>, searcher: &mut Searcher)
 {
     let option_name: &str = tokens[2];
-    let option_value: f64 = tokens[4].parse::<f64>().unwrap();
+    let option_value: &str = tokens[4];
     
     if option_name == "hash" || option_name == "Hash" {
-        searcher.resize_tt(option_value as usize);
+        searcher.resize_tt(option_value.parse::<usize>().unwrap());
         searcher.print_tt_size();
         return; 
     }
 
-    match set_param(option_name, option_value) 
+    if let Err(_) = option_value.parse::<f64>() {
+        println!("Unknown option {} or value {}", option_name, option_value);
+        return;
+    }
+
+    let new_param_value: f64 = option_value.parse::<f64>().unwrap();
+
+    match set_param(option_name, new_param_value) 
     {
         Ok(updated_value_as_str) => { 
             if option_name == stringify!(lmr_base) || option_name == stringify!(lmr_multiplier) {

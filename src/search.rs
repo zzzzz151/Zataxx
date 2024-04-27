@@ -113,7 +113,9 @@ impl Searcher
     pub fn get_nodes(&self) -> u64 { self.nodes }
 
     pub fn clear_tt(&mut self) { 
-        self.tt = vec![TTEntry::default(); self.tt.len()];
+        for i in 0..self.tt.len() {
+            self.tt[i] = TTEntry::default();
+        }
     }
 
     pub fn clear_killers(&mut self) {

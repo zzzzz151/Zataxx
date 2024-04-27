@@ -119,6 +119,7 @@ macro_rules! tunable_params {
             }
         )+
 
+        #[allow(dead_code)]
         pub fn list_params() {
             $(
                 let is_float: bool = std::any::TypeId::of::<$type>() == std::any::TypeId::of::<f32>() 
